@@ -1,0 +1,2257 @@
+import { useState, useRef, useCallback, useEffect } from "react";
+
+/* ─── CSS ─────────────────────────────────────────────────── */
+const G = `
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;margin:0;padding:0;}
+  html,body{overflow:hidden;height:100%;}
+  @keyframes sIR{from{transform:translateX(44px);opacity:0}to{transform:translateX(0);opacity:1}}
+  @keyframes sIL{from{transform:translateX(-44px);opacity:0}to{transform:translateX(0);opacity:1}}
+  @keyframes sIU{from{transform:translateY(22px);opacity:0}to{transform:translateY(0);opacity:1}}
+  @keyframes scI{from{transform:scale(.87);opacity:0}to{transform:scale(1);opacity:1}}
+  @keyframes cardPop{0%{transform:translateY(14px) scale(.85);opacity:0}70%{transform:translateY(-2px) scale(1.03);opacity:1}100%{transform:translateY(0) scale(1);opacity:1}}
+  @keyframes plusSpin{0%{transform:rotate(-90deg) scale(.5);opacity:0}100%{transform:rotate(0) scale(1);opacity:1}}
+  @keyframes fIn{from{opacity:0}to{opacity:1}}
+  @keyframes nB{0%,100%{transform:scale(1)}45%{transform:scale(1.14)}75%{transform:scale(.97)}}
+  @keyframes bSp{0%{transform:scale(0) rotate(-40deg);opacity:0}65%{transform:scale(1.1) rotate(5deg)}100%{transform:scale(1) rotate(0);opacity:1}}
+  @keyframes bGl{0%,100%{box-shadow:0 3px 14px var(--bc)55}50%{box-shadow:0 6px 28px var(--bc)99}}
+  @keyframes bFloat{0%,100%{transform:translateY(0) rotate(-2deg)}50%{transform:translateY(-4px) rotate(2deg)}}
+  @keyframes bShine{0%{transform:translateX(-120%) rotate(20deg)}100%{transform:translateX(220%) rotate(20deg)}}
+  @keyframes bSpin{0%,85%{transform:rotate(0)}92%{transform:rotate(-12deg)}100%{transform:rotate(0)}}
+  @keyframes bRainbow{0%{filter:hue-rotate(0deg) saturate(1.3)}100%{filter:hue-rotate(360deg) saturate(1.3)}}
+  @keyframes bSparkle{0%,100%{opacity:0;transform:scale(.4) translateY(0)}50%{opacity:1;transform:scale(1) translateY(-2px)}}
+  @keyframes cUp{to{transform:translateY(-115vh) rotate(360deg);opacity:0}}
+  @keyframes pls{0%,100%{transform:scale(1)}50%{transform:scale(1.07)}}
+  @keyframes shU{from{transform:translateY(100%)}to{transform:translateY(0)}}
+  @keyframes barGrow{from{width:0}to{width:var(--w)}}
+  @keyframes waveFlow{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+  @keyframes bubbleRise{0%{transform:translateY(0) scale(.6);opacity:0}15%{opacity:.85}90%{opacity:.4}100%{transform:translateY(-150px) scale(1);opacity:0}}
+  .sir{animation:sIR .3s cubic-bezier(.34,1.2,.64,1) both}
+  .sil{animation:sIL .3s cubic-bezier(.34,1.2,.64,1) both}
+  .siu{animation:sIU .26s ease both}
+  .sci{animation:scI .26s cubic-bezier(.34,1.3,.64,1) both}
+  .fin{animation:fIn .22s ease both}
+  ::-webkit-scrollbar{display:none}
+  *{scrollbar-width:none;-ms-overflow-style:none;}
+  input[type=range]{-webkit-appearance:none;appearance:none;height:5px;border-radius:3px;outline:none;cursor:pointer;width:100%;background:transparent;}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:22px;height:22px;border-radius:50%;background:white;box-shadow:0 2px 8px rgba(0,0,0,.3);cursor:pointer;}
+  input[type=number]{-moz-appearance:textfield;}
+  input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none;}
+`;
+
+/* ─── Science ─────────────────────────────────────────────── */
+function calcGoal({ weight, height, age, gender, activity, tempC = 22 }) {
+  const bmr = gender === "male"
+    ? 10*weight + 6.25*height - 5*age + 5
+    : 10*weight + 6.25*height - 5*age - 161;
+  const pal = { sedentary:1.2, light:1.375, moderate:1.55, active:1.725, veryActive:1.9 }[activity] ?? 1.375;
+  let w = bmr * pal;
+  w += Math.max(0,(tempC-20)/5)*200;
+  const bsa = 0.007184 * Math.pow(weight,.425) * Math.pow(height,.725);
+  w += (bsa-1.7)*300;
+  if (age>=65) w*=1.08; if (age<18) w*=0.88;
+  w *= 0.80;
+  return Math.round(Math.min(Math.max(w,gender==="male"?2000:1600),5500)/50)*50;
+}
+function wxIcon(c,n){
+  if(c===0)return n?"🌙":"☀️"; if(c<=2)return n?"🌤":"⛅";
+  if(c<=3)return"☁️"; if(c<=48)return"🌫️"; if(c<=55)return"🌦️";
+  if(c<=67)return"🌧️"; if(c<=77)return"❄️"; return"⛈️";
+}
+
+/* ─── SVGs ────────────────────────────────────────────────── */
+const SV = {
+water:`<svg viewBox="0 0 56 76" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="wg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#90CAF9" stop-opacity=".65"/><stop offset="100%" stop-color="#1565C0" stop-opacity=".92"/></linearGradient><clipPath id="wc"><path d="M10,5 L46,5 Q48,5 48,7 L43,72 Q43,74 41,74 L15,74 Q13,74 13,72 L8,7 Q8,5 10,5Z"/></clipPath></defs><path d="M10,5 L46,5 Q48,5 48,7 L43,72 Q43,74 41,74 L15,74 Q13,74 13,72 L8,7 Q8,5 10,5Z" fill="none" stroke="#42A5F5" stroke-width="2"/><rect x="0" y="34" width="56" height="42" fill="url(#wg)" clip-path="url(#wc)"/><path d="M3,34 Q14,28 28,34 Q42,40 53,34" fill="none" stroke="white" stroke-width="1.3" opacity=".5" clip-path="url(#wc)"/><line x1="17" y1="13" x2="15" y2="62" stroke="white" stroke-width="2" stroke-linecap="round" opacity=".28"/></svg>`,
+maden:`<svg viewBox="0 0 40 76" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="mdg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#80DEEA" stop-opacity=".7"/><stop offset="100%" stop-color="#00838F" stop-opacity=".95"/></linearGradient><clipPath id="mdc"><path d="M10,17 Q6,21 6,29 L6,66 Q6,74 12,74 L28,74 Q34,74 34,66 L34,29 Q34,21 30,17Z"/></clipPath></defs><path d="M10,17 Q6,21 6,29 L6,66 Q6,74 12,74 L28,74 Q34,74 34,66 L34,29 Q34,21 30,17Z" fill="white" stroke="#26C6DA" stroke-width="1.8"/><rect x="0" y="33" width="40" height="44" fill="url(#mdg)" clip-path="url(#mdc)"/><circle cx="14" cy="48" r="2" fill="white" opacity=".65" clip-path="url(#mdc)"/><circle cx="24" cy="40" r="1.6" fill="white" opacity=".55" clip-path="url(#mdc)"/><circle cx="18" cy="58" r="1.8" fill="white" opacity=".5" clip-path="url(#mdc)"/><rect x="11" y="8" width="18" height="10" rx="3" fill="#4DD0E1"/><rect x="13" y="2" width="14" height="8" rx="3" fill="#00BCD4"/></svg>`,
+cay:`<svg viewBox="0 0 66 66" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="cg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#EF9A9A" stop-opacity=".7"/><stop offset="100%" stop-color="#C62828" stop-opacity=".95"/></linearGradient><clipPath id="cc"><path d="M17,22 Q15,24 15,28 L18,55 Q18,59 23,59 L43,59 Q48,59 48,55 L51,28 Q51,24 49,22Z"/></clipPath></defs><path d="M24,14 Q22,8 25,2 Q29,8 26,14" fill="none" stroke="#EF9A9A" stroke-width="1.5" stroke-linecap="round"/><path d="M36,12 Q34,6 37,0 Q41,6 38,12" fill="none" stroke="#EF9A9A" stroke-width="1.5" stroke-linecap="round"/><path d="M17,22 Q15,24 15,28 L18,55 Q18,59 23,59 L43,59 Q48,59 48,55 L51,28 Q51,24 49,22Z" fill="white" stroke="#EF5350" stroke-width="1.8"/><rect x="0" y="28" width="66" height="33" fill="url(#cg)" clip-path="url(#cc)"/><path d="M48,30 Q60,30 60,41 Q60,52 48,52" fill="none" stroke="#EF5350" stroke-width="2.5" stroke-linecap="round"/><ellipse cx="33" cy="61" rx="21" ry="3.2" fill="#FFCDD2"/></svg>`,
+bitki:`<svg viewBox="0 0 66 66" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="btg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#C8E6C9" stop-opacity=".8"/><stop offset="100%" stop-color="#2E7D32" stop-opacity=".92"/></linearGradient><clipPath id="btc"><path d="M17,22 Q15,24 15,28 L18,55 Q18,59 23,59 L43,59 Q48,59 48,55 L51,28 Q51,24 49,22Z"/></clipPath></defs><path d="M25,15 Q22,8 25,2 Q30,8 27,15" fill="none" stroke="#A5D6A7" stroke-width="1.5" stroke-linecap="round"/><path d="M17,22 Q15,24 15,28 L18,55 Q18,59 23,59 L43,59 Q48,59 48,55 L51,28 Q51,24 49,22Z" fill="white" stroke="#66BB6A" stroke-width="1.8"/><rect x="0" y="26" width="66" height="35" fill="url(#btg)" clip-path="url(#btc)"/><path d="M48,30 Q60,30 60,41 Q60,52 48,52" fill="none" stroke="#66BB6A" stroke-width="2.5" stroke-linecap="round"/><ellipse cx="33" cy="61" rx="21" ry="3.2" fill="#C8E6C9"/></svg>`,
+kahve:`<svg viewBox="0 0 66 66" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="khg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#8D6E63" stop-opacity=".8"/><stop offset="100%" stop-color="#1A0700" stop-opacity=".98"/></linearGradient></defs><path d="M27,13 Q25,7 28,2 Q32,7 29,13" fill="none" stroke="#BCAAA4" stroke-width="1.3" stroke-linecap="round"/><path d="M15,19 Q11,21 9,27 L11,34 Q11,40 33,40 Q55,40 55,34 L57,27 Q55,21 51,19Z" fill="#6D4C41" stroke="#4E342E" stroke-width="1.8"/><path d="M53,21 Q63,21 63,29 Q63,33 53,35" fill="none" stroke="#4E342E" stroke-width="2.8" stroke-linecap="round"/><ellipse cx="33" cy="40" rx="22" ry="5" fill="#3E2723"/><ellipse cx="33" cy="38" rx="20" ry="4" fill="url(#khg)"/><ellipse cx="33" cy="36" rx="17" ry="2.8" fill="#A1887F" opacity=".5"/><rect x="9" y="52" width="48" height="4.5" rx="2.5" fill="#BCAAA4"/><rect x="5" y="55" width="56" height="3.5" rx="2" fill="#8D6E63"/></svg>`,
+sut:`<svg viewBox="0 0 46 72" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="stg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#F5F5F5" stop-opacity=".9"/><stop offset="100%" stop-color="#90A4AE" stop-opacity=".95"/></linearGradient><clipPath id="stc"><path d="M14,8 L14,19 Q4,23 4,31 L4,66 Q4,72 12,72 L34,72 Q42,72 42,66 L42,31 Q42,23 32,19 L32,8Z"/></clipPath></defs><path d="M14,8 L14,19 Q4,23 4,31 L4,66 Q4,72 12,72 L34,72 Q42,72 42,66 L42,31 Q42,23 32,19 L32,8Z" fill="white" stroke="#90A4AE" stroke-width="1.8"/><rect x="0" y="31" width="46" height="44" fill="url(#stg)" clip-path="url(#stc)"/><ellipse cx="23" cy="31" rx="16" ry="4" fill="white" clip-path="url(#stc)" opacity=".8"/><rect x="12" y="5" width="22" height="5.5" rx="2.5" fill="#CFD8DC"/></svg>`,
+ayran:`<svg viewBox="0 0 54 72" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="ayg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#ECEFF1" stop-opacity=".9"/><stop offset="100%" stop-color="#607D8B" stop-opacity=".95"/></linearGradient><clipPath id="ayc"><path d="M9,6 L9,63 Q9,71 17,71 L37,71 Q45,71 45,63 L45,6Z"/></clipPath></defs><path d="M9,6 L9,63 Q9,71 17,71 L37,71 Q45,71 45,63 L45,6Z" fill="white" stroke="#78909C" stroke-width="1.8"/><rect x="0" y="25" width="54" height="49" fill="url(#ayg)" clip-path="url(#ayc)"/><ellipse cx="27" cy="25" rx="15" ry="5.5" fill="white" clip-path="url(#ayc)"/><rect x="7" y="2" width="40" height="6" rx="2.5" fill="#B0BEC5"/></svg>`,
+meyve:`<svg viewBox="0 0 54 72" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="myg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#FFAB91" stop-opacity=".9"/><stop offset="100%" stop-color="#E64A19" stop-opacity=".95"/></linearGradient><clipPath id="myc"><path d="M8,8 L8,63 Q8,71 16,71 L38,71 Q46,71 46,63 L46,8Z"/></clipPath></defs><path d="M8,8 L8,63 Q8,71 16,71 L38,71 Q46,71 46,63 L46,8Z" fill="white" stroke="#FF7043" stroke-width="2"/><rect x="0" y="26" width="54" height="48" fill="url(#myg)" clip-path="url(#myc)"/><rect x="8" y="4" width="38" height="7" rx="2.5" fill="#FFCCBC"/><rect x="33" y="0" width="4" height="44" rx="2" fill="#FF8A65"/></svg>`,
+spor:`<svg viewBox="0 0 44 72" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="spg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#CE93D8" stop-opacity=".8"/><stop offset="100%" stop-color="#4527A0" stop-opacity=".98"/></linearGradient><clipPath id="spc"><path d="M10,20 Q6,24 6,31 L6,65 Q6,72 14,72 L30,72 Q38,72 38,65 L38,31 Q38,24 34,20Z"/></clipPath></defs><path d="M10,20 Q6,24 6,31 L6,65 Q6,72 14,72 L30,72 Q38,72 38,65 L38,31 Q38,24 34,20Z" fill="white" stroke="#7E57C2" stroke-width="1.8"/><rect x="0" y="35" width="44" height="40" fill="url(#spg)" clip-path="url(#spc)"/><rect x="12" y="8" width="20" height="13" rx="4" fill="#9575CD"/><rect x="15" y="4" width="14" height="7" rx="3" fill="#7E57C2"/></svg>`,
+diger:`<svg viewBox="0 0 54 72" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="dgg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#F48FB1" stop-opacity=".8"/><stop offset="100%" stop-color="#880E4F" stop-opacity=".98"/></linearGradient><clipPath id="dgc"><path d="M8,8 L8,63 Q8,71 16,71 L38,71 Q46,71 46,63 L46,8Z"/></clipPath></defs><path d="M8,8 L8,63 Q8,71 16,71 L38,71 Q46,71 46,63 L46,8Z" fill="white" stroke="#E91E63" stroke-width="2"/><rect x="0" y="24" width="54" height="50" fill="url(#dgg)" clip-path="url(#dgc)"/><rect x="8" y="4" width="38" height="7" rx="2.5" fill="#F48FB1"/></svg>`,
+/* ── Gazlı içecek teneke kutusu — kola/fanta/sprite/enerji için ortak gövde,
+     her biri kendi rengi + etiketiyle ayrı görünür (gerçekçi teneke kutu siluet) */
+kola:`<svg viewBox="0 0 44 70" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="klg" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stop-color="#8D6E63"/><stop offset="15%" stop-color="#4E342E"/><stop offset="50%" stop-color="#3E2723"/><stop offset="85%" stop-color="#5D4037"/><stop offset="100%" stop-color="#3E2723"/></linearGradient></defs><rect x="4" y="4" width="36" height="62" rx="6" fill="url(#klg)" stroke="#2A1A14" stroke-width="1.2"/><ellipse cx="22" cy="5" rx="18" ry="3.4" fill="#BCAAA4"/><ellipse cx="22" cy="65" rx="18" ry="3.4" fill="#2A1A14"/><path d="M22,5 L18,32 Q22,36 26,32 Z" fill="white" opacity=".92"/><rect x="6" y="36" width="32" height="13" rx="2" fill="#D32F2F"/><circle cx="14" cy="42.5" r="2" fill="white" opacity=".4"/><line x1="11" y1="10" x2="9" y2="60" stroke="white" stroke-width="2" stroke-linecap="round" opacity=".18"/></svg>`,
+kola_zero:`<svg viewBox="0 0 44 70" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="kzg" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stop-color="#616161"/><stop offset="15%" stop-color="#212121"/><stop offset="50%" stop-color="#000000"/><stop offset="85%" stop-color="#424242"/><stop offset="100%" stop-color="#212121"/></linearGradient></defs><rect x="4" y="4" width="36" height="62" rx="6" fill="url(#kzg)" stroke="#000" stroke-width="1.2"/><ellipse cx="22" cy="5" rx="18" ry="3.4" fill="#9E9E9E"/><ellipse cx="22" cy="65" rx="18" ry="3.4" fill="#000"/><path d="M22,5 L18,32 Q22,36 26,32 Z" fill="white" opacity=".92"/><rect x="6" y="36" width="32" height="13" rx="2" fill="#D32F2F"/><line x1="11" y1="10" x2="9" y2="60" stroke="white" stroke-width="2" stroke-linecap="round" opacity=".15"/></svg>`,
+fanta:`<svg viewBox="0 0 44 70" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="fng" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stop-color="#FF8A65"/><stop offset="15%" stop-color="#FF7043"/><stop offset="50%" stop-color="#E64A19"/><stop offset="85%" stop-color="#FF8A65"/><stop offset="100%" stop-color="#FF7043"/></linearGradient></defs><rect x="4" y="4" width="36" height="62" rx="6" fill="url(#fng)" stroke="#BF360C" stroke-width="1.2"/><ellipse cx="22" cy="5" rx="18" ry="3.4" fill="#FFCCBC"/><ellipse cx="22" cy="65" rx="18" ry="3.4" fill="#BF360C"/><path d="M22,5 L18,32 Q22,36 26,32 Z" fill="white" opacity=".92"/><rect x="6" y="36" width="32" height="13" rx="2" fill="white"/><circle cx="22" cy="42.5" r="4.5" fill="#FF7043"/><line x1="11" y1="10" x2="9" y2="60" stroke="white" stroke-width="2" stroke-linecap="round" opacity=".22"/></svg>`,
+sprite:`<svg viewBox="0 0 44 70" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="sprg" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stop-color="#AED581"/><stop offset="15%" stop-color="#9CCC65"/><stop offset="50%" stop-color="#558B2F"/><stop offset="85%" stop-color="#AED581"/><stop offset="100%" stop-color="#9CCC65"/></linearGradient></defs><rect x="4" y="4" width="36" height="62" rx="6" fill="url(#sprg)" stroke="#33691E" stroke-width="1.2"/><ellipse cx="22" cy="5" rx="18" ry="3.4" fill="#DCEDC8"/><ellipse cx="22" cy="65" rx="18" ry="3.4" fill="#33691E"/><path d="M22,5 L18,32 Q22,36 26,32 Z" fill="white" opacity=".92"/><rect x="6" y="36" width="32" height="13" rx="2" fill="white"/><path d="M16,42.5 L20,38 L24,42.5 L28,38" stroke="#558B2F" stroke-width="2" fill="none" stroke-linecap="round"/><line x1="11" y1="10" x2="9" y2="60" stroke="white" stroke-width="2" stroke-linecap="round" opacity=".22"/></svg>`,
+gazoz:`<svg viewBox="0 0 40 76" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="gzg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#FFE082" stop-opacity=".8"/><stop offset="100%" stop-color="#F57F17" stop-opacity=".95"/></linearGradient><clipPath id="gzc"><path d="M10,17 Q6,21 6,29 L6,66 Q6,74 12,74 L28,74 Q34,74 34,66 L34,29 Q34,21 30,17Z"/></clipPath></defs><path d="M10,17 Q6,21 6,29 L6,66 Q6,74 12,74 L28,74 Q34,74 34,66 L34,29 Q34,21 30,17Z" fill="white" stroke="#FFB300" stroke-width="1.8"/><rect x="0" y="33" width="40" height="44" fill="url(#gzg)" clip-path="url(#gzc)"/><circle cx="14" cy="48" r="2" fill="white" opacity=".7" clip-path="url(#gzc)"/><circle cx="24" cy="40" r="1.6" fill="white" opacity=".6" clip-path="url(#gzc)"/><circle cx="18" cy="58" r="1.8" fill="white" opacity=".55" clip-path="url(#gzc)"/><circle cx="26" cy="62" r="1.4" fill="white" opacity=".5" clip-path="url(#gzc)"/><rect x="11" y="8" width="18" height="10" rx="3" fill="#FFD54F"/><rect x="13" y="2" width="14" height="8" rx="3" fill="#FFC107"/></svg>`,
+enerji:`<svg viewBox="0 0 38 70" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="enrg" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stop-color="#26C6DA"/><stop offset="15%" stop-color="#00838F"/><stop offset="50%" stop-color="#006064"/><stop offset="85%" stop-color="#26C6DA"/><stop offset="100%" stop-color="#00838F"/></linearGradient></defs><rect x="5" y="3" width="28" height="64" rx="5" fill="url(#enrg)" stroke="#004D40" stroke-width="1.2"/><ellipse cx="19" cy="4" rx="14" ry="2.8" fill="#80DEEA"/><ellipse cx="19" cy="66" rx="14" ry="2.8" fill="#004D40"/><path d="M21,12 L13,34 L19,34 L15,52 L27,28 L20,28 Z" fill="#FFEB3B" stroke="#F9A825" stroke-width="1"/><line x1="10" y1="8" x2="8" y2="60" stroke="white" stroke-width="1.8" stroke-linecap="round" opacity=".2"/></svg>`,
+tonik:`<svg viewBox="0 0 40 76" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="tng" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#ECEFF1" stop-opacity=".6"/><stop offset="100%" stop-color="#90A4AE" stop-opacity=".85"/></linearGradient><clipPath id="tnc"><path d="M10,17 Q6,21 6,29 L6,66 Q6,74 12,74 L28,74 Q34,74 34,66 L34,29 Q34,21 30,17Z"/></clipPath></defs><path d="M10,17 Q6,21 6,29 L6,66 Q6,74 12,74 L28,74 Q34,74 34,66 L34,29 Q34,21 30,17Z" fill="white" stroke="#B0BEC5" stroke-width="1.8"/><rect x="0" y="33" width="40" height="44" fill="url(#tng)" clip-path="url(#tnc)"/><circle cx="14" cy="48" r="1.8" fill="white" opacity=".8" clip-path="url(#tnc)"/><circle cx="24" cy="40" r="1.4" fill="white" opacity=".7" clip-path="url(#tnc)"/><circle cx="18" cy="58" r="1.6" fill="white" opacity=".65" clip-path="url(#tnc)"/><rect x="11" y="8" width="18" height="10" rx="3" fill="#CFD8DC"/><rect x="13" y="2" width="14" height="8" rx="3" fill="#B0BEC5"/></svg>`,
+/* Kullanıcının kendi eklediği özel içecekler için jenerik ikon — kupa + parıltı */
+custom:`<svg viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="cstg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#B39DDB" stop-opacity=".85"/><stop offset="100%" stop-color="#5E35B1" stop-opacity=".95"/></linearGradient></defs><path d="M12,18 L44,18 L42,46 Q41,52 35,52 L21,52 Q15,52 14,46 Z" fill="url(#cstg)" stroke="#4527A0" stroke-width="2"/><path d="M44,22 Q54,22 54,32 Q54,40 44,41" fill="none" stroke="#4527A0" stroke-width="3" stroke-linecap="round"/><circle cx="28" cy="8" r="3.5" fill="#FFD54F"/><circle cx="20" cy="6" r="2" fill="#FFD54F" opacity=".8"/><circle cx="37" cy="8" r="2" fill="#FFD54F" opacity=".8"/></svg>`,
+};
+
+
+/* ─── Drinks ──────────────────────────────────────────────── */
+const DK = [
+  {id:"water",     name:"Su",                   sub:"Saf Su",                 cat:"su",    color:"#2196F3",dark:"#0D47A1",bg:"#E3F2FD",sk:"water", w:1.00,cal:0,  caff:0, sug:0,  prot:0  },
+  {id:"maden",     name:"Maden Suyu",            sub:"Doğal Kaynaklı",         cat:"su",    color:"#00ACC1",dark:"#006064",bg:"#E0F7FA",sk:"maden", w:1.00,cal:0,  caff:0, sug:0,  prot:0  },
+  {id:"soda",      name:"Soda",                  sub:"Gazlı Maden Suyu",       cat:"su",    color:"#26C6DA",dark:"#00838F",bg:"#E0F7FA",sk:"maden", w:1.00,cal:0,  caff:0, sug:0,  prot:0  },
+  {id:"cay_sade",  name:"Çay Sade",              sub:"Şekersiz Siyah Çay",     cat:"cay",   color:"#E53935",dark:"#B71C1C",bg:"#FFEBEE",sk:"cay",   w:0.99,cal:2,  caff:47,sug:0,  prot:0  },
+  {id:"cay_tek",   name:"Çay Tek Şeker",         sub:"1 Kesme Şeker",          cat:"cay",   color:"#EF5350",dark:"#C62828",bg:"#FFEBEE",sk:"cay",   w:0.99,cal:16, caff:47,sug:4,  prot:0  },
+  {id:"cay_cift",  name:"Çay Çift Şeker",        sub:"2 Kesme Şeker",          cat:"cay",   color:"#F44336",dark:"#D32F2F",bg:"#FFEBEE",sk:"cay",   w:0.99,cal:28, caff:47,sug:7,  prot:0  },
+  {id:"buzlu_cay", name:"Buzlu Çay",             sub:"Şeftali/Limon Aromalı",  cat:"cay",   color:"#FFB74D",dark:"#E65100",bg:"#FFF3E0",sk:"cay",   w:0.92, cal:36, caff:10,sug:8.5,prot:0  },
+  {id:"ihlamur",   name:"Ihlamur",               sub:"Ihlamur Çiçeği",         cat:"bitki", color:"#66BB6A",dark:"#2E7D32",bg:"#E8F5E9",sk:"bitki", w:0.995,cal:1, caff:0, sug:0,  prot:0  },
+  {id:"melisa",    name:"Melisa",                sub:"Melisa Otu",             cat:"bitki", color:"#81C784",dark:"#388E3C",bg:"#E8F5E9",sk:"bitki", w:0.995,cal:1, caff:0, sug:0,  prot:0  },
+  {id:"yesil_cay", name:"Yeşil Çay",             sub:"Antioksidan",            cat:"bitki", color:"#4CAF50",dark:"#1B5E20",bg:"#E8F5E9",sk:"bitki", w:0.995,cal:1, caff:28,sug:0,  prot:0  },
+  {id:"nane_limon",name:"Nane Limon",             sub:"Serinletici Bitki",      cat:"bitki", color:"#26C6DA",dark:"#006064",bg:"#E0F7FA",sk:"bitki", w:0.995,cal:2, caff:0, sug:0,  prot:0  },
+  {id:"kusburnu",  name:"Kuşburnu",              sub:"C Vitamini",             cat:"bitki", color:"#EF5350",dark:"#B71C1C",bg:"#FFF8F8",sk:"bitki", w:0.995,cal:3, caff:0, sug:0.5,prot:0  },
+  {id:"papatya",   name:"Papatya",               sub:"Sakinleştirici",         cat:"bitki", color:"#FDD835",dark:"#F57F17",bg:"#FFFDE7",sk:"bitki", w:0.995,cal:1, caff:0, sug:0,  prot:0  },
+  {id:"zencefil",  name:"Zencefil",              sub:"Bağışıklık Desteği",     cat:"bitki", color:"#FF8F00",dark:"#E65100",bg:"#FFF3E0",sk:"bitki", w:0.993,cal:4, caff:0, sug:0.2,prot:0  },
+  {id:"ada_cay",   name:"Adaçayı",               sub:"Doğal Bitki",            cat:"bitki", color:"#9CCC65",dark:"#558B2F",bg:"#F1F8E9",sk:"bitki", w:0.995,cal:1, caff:0, sug:0,  prot:0  },
+  {id:"turk_sade", name:"Türk K. Sade",          sub:"Şekersiz · Cezve",      cat:"kahve", color:"#4E342E",dark:"#3E2723",bg:"#EFEBE9",sk:"kahve", w:0.97,cal:4,  caff:65,sug:0,  prot:0.2},
+  {id:"turk_az",   name:"Türk K. Az Şeker",      sub:"Az Şekerli",            cat:"kahve", color:"#5D4037",dark:"#3E2723",bg:"#EFEBE9",sk:"kahve", w:0.97,cal:12, caff:65,sug:2,  prot:0.2},
+  {id:"turk_orta", name:"Türk K. Orta",          sub:"Orta Şekerli",          cat:"kahve", color:"#6D4C41",dark:"#3E2723",bg:"#EFEBE9",sk:"kahve", w:0.97,cal:22, caff:65,sug:5,  prot:0.2},
+  {id:"turk_cift", name:"Türk K. Çok Şeker",     sub:"Çift Şekerli",          cat:"kahve", color:"#795548",dark:"#3E2723",bg:"#EFEBE9",sk:"kahve", w:0.97,cal:32, caff:65,sug:8,  prot:0.2},
+  {id:"nescafe",   name:"Nescafé Sade",           sub:"Şekersiz Hazır Kahve",  cat:"kahve", color:"#8D6E63",dark:"#3E2723",bg:"#EFEBE9",sk:"kahve", w:0.98,cal:4,  caff:60,sug:0,  prot:0.1},
+  {id:"nesc3in1",  name:"Nescafé 3'ü 1 Arada",   sub:"Kahve+Şeker+Süt",       cat:"kahve", color:"#BCAAA4",dark:"#5D4037",bg:"#EFEBE9",sk:"kahve", w:0.90,cal:42, caff:40,sug:8,  prot:1.0},
+  {id:"filtre",    name:"Filtre Kahve",          sub:"Amerikano",             cat:"kahve", color:"#6D4C41",dark:"#3E2723",bg:"#EFEBE9",sk:"kahve", w:0.99,cal:2,  caff:40,sug:0,  prot:0.1},
+  {id:"latte",     name:"Sütlü Kahve",           sub:"Latte",                 cat:"kahve", color:"#A1887F",dark:"#4E342E",bg:"#EFEBE9",sk:"sut",   w:0.92,cal:42, caff:35,sug:3.5,prot:2.0},
+  {id:"sut",       name:"Süt",                   sub:"Tam Yağlı %3.5",        cat:"diger", color:"#78909C",dark:"#455A64",bg:"#ECEFF1",sk:"sut",   w:0.875,cal:61,caff:0, sug:4.7,prot:3.2},
+  {id:"ayran",     name:"Ayran",                 sub:"Ulusal İçecek",          cat:"diger", color:"#546E7A",dark:"#37474F",bg:"#ECEFF1",sk:"ayran", w:0.905,cal:36,caff:0, sug:0,  prot:3.5},
+  {id:"kefir",     name:"Kefir",                 sub:"Probiyotik",             cat:"diger", color:"#43A047",dark:"#1B5E20",bg:"#E8F5E9",sk:"ayran", w:0.880,cal:40,caff:0, sug:3.4,prot:3.8},
+  {id:"limonata",  name:"Limonata",              sub:"Taze Sıkılmış",         cat:"diger", color:"#FDD835",dark:"#F57F17",bg:"#FFFDE7",sk:"meyve", w:0.918,cal:24,caff:0, sug:5.5,prot:0.1},
+  {id:"portakal",  name:"Portakal Suyu",         sub:"Taze Sıkılmış",         cat:"diger", color:"#FF7043",dark:"#BF360C",bg:"#FBE9E7",sk:"meyve", w:0.882,cal:44,caff:0, sug:8.4,prot:0.7},
+  {id:"elma_suyu", name:"Elma Suyu",             sub:"Doğal Meyve Suyu",      cat:"diger", color:"#9CCC65",dark:"#558B2F",bg:"#F1F8E9",sk:"meyve", w:0.880,cal:46,caff:0, sug:10, prot:0.1},
+  {id:"komposto",  name:"Komposto",              sub:"Ev Yapımı",              cat:"diger", color:"#E91E63",dark:"#880E4F",bg:"#FCE4EC",sk:"diger", w:0.910,cal:38,caff:0, sug:9,  prot:0.2},
+  {id:"protein",   name:"Protein Shake",         sub:"Whey · Spor",           cat:"diger", color:"#7E57C2",dark:"#4527A0",bg:"#EDE7F6",sk:"spor",  w:0.840,cal:130,caff:0,sug:3,  prot:25 },
+  {id:"smoothie",  name:"Smoothie",              sub:"Meyve Karışımı",        cat:"diger", color:"#EC407A",dark:"#880E4F",bg:"#FCE4EC",sk:"diger", w:0.870,cal:68, caff:0, sug:13, prot:1.8},
+  {id:"boza",      name:"Boza",                  sub:"Geleneksel Fermente",   cat:"diger", color:"#FF8F00",dark:"#E65100",bg:"#FFF3E0",sk:"diger", w:0.760,cal:76, caff:0, sug:15, prot:1.4},
+  {id:"salgam",    name:"Şalgam Suyu",           sub:"Fermente Turp",         cat:"diger", color:"#7B1FA2",dark:"#4A148C",bg:"#F3E5F5",sk:"diger", w:0.950,cal:14, caff:0, sug:1.8,prot:0.6},
+  /* ── Gazlı İçecekler — çok talep gören kategori, her biri kendi gerçekçi ikonuyla ──
+     Değerler 100ml için gerçek üretici verilerine dayanır (Coca-Cola Company beslenme tablosu). */
+  {id:"kola",      name:"Kola",                  sub:"Klasik Gazoz",          cat:"gazoz", color:"#5D4037",dark:"#3E2723",bg:"#EFEBE9",sk:"kola",      w:0.92, cal:42, caff:10,sug:10.6,prot:0 },
+  {id:"kola_zero", name:"Kola Zero",             sub:"Şekersiz · Tatlandırıcılı",cat:"gazoz",color:"#424242",dark:"#212121",bg:"#ECEFF1",sk:"kola_zero", w:0.99, caff:9, cal:0,  sug:0,  prot:0  },
+  {id:"fanta",     name:"Fanta",                 sub:"Portakal Aromalı",      cat:"gazoz", color:"#FF7043",dark:"#BF360C",bg:"#FBE9E7",sk:"fanta",     w:0.91, cal:45, caff:0, sug:11, prot:0  },
+  {id:"sprite",    name:"Sprite",                sub:"Limon-Misket Limonu",   cat:"gazoz", color:"#9CCC65",dark:"#33691E",bg:"#F1F8E9",sk:"sprite",    w:0.92, cal:40, caff:0, sug:10, prot:0  },
+  {id:"gazoz",     name:"Meyveli Gazoz",         sub:"Klasik Türk Gazozu",    cat:"gazoz", color:"#FFCA28",dark:"#F57F17",bg:"#FFFDE7",sk:"gazoz",     w:0.93, cal:38, caff:0, sug:9.5,prot:0  },
+  {id:"enerji",    name:"Enerji İçeceği",        sub:"Max 1 Adet/Gün",        cat:"gazoz", color:"#00BCD4",dark:"#006064",bg:"#E0F7FA",sk:"enerji",    w:0.875,cal:45, caff:32,sug:11, prot:0  },
+  {id:"tonik",     name:"Tonik",                 sub:"Kinin Aromalı",         cat:"gazoz", color:"#B0BEC5",dark:"#37474F",bg:"#ECEFF1",sk:"tonik",     w:0.96, cal:34, caff:0, sug:8.3,prot:0  },
+];
+const CATS=[{k:"su",l:"Sular"},{k:"cay",l:"Çay"},{k:"bitki",l:"Bitkiler"},{k:"kahve",l:"Kahve"},{k:"gazoz",l:"Gazlı İçecekler"},{k:"diger",l:"Diğer"}];
+
+/* ─── Badges ──────────────────────────────────────────────── */
+const BD=[
+  // ── Bronze (kolay — ilk adımlar) ──
+  {id:"first", icon:"🥇",name:"İlk Yudum",      desc:"İlk içeceğini kaydettik!",        color:"#FFD700",tier:"bronze",check:(i,t,g)=>i.length>=1},
+  {id:"five",  icon:"🌊",name:"Sel Gibi",        desc:"Bugün 5 kayıt ekledin",           color:"#2196F3",tier:"bronze",check:(i,t,g)=>i.length>=5},
+  {id:"1L",    icon:"🫗",name:"1 Litre",         desc:"1000 ml geçildi",                 color:"#00BCD4",tier:"bronze",check:(i,t,g)=>t>=1000},
+  {id:"early", icon:"🌅",name:"Erken Kuş",       desc:"Sabah 9'dan önce kayıt",          color:"#FF9800",tier:"bronze",check:(i,t,g)=>i.some(e=>parseInt(e.time)<9)},
+  {id:"night", icon:"🌙",name:"Gece Kuşu",       desc:"Gece 22:00 sonrası kayıt",        color:"#3F51B5",tier:"bronze",check:(i,t,g)=>i.some(e=>parseInt(e.time)>=22)},
+  {id:"prot",  icon:"💪",name:"Protein Fanı",    desc:"Protein shake ekledin",           color:"#7E57C2",tier:"bronze",check:(i,t,g)=>i.some(e=>e.drink.id==="protein")},
+  {id:"ayranf",icon:"🥛",name:"Ayran Sever",     desc:"Ayran içmeyi unutmadın",          color:"#546E7A",tier:"bronze",check:(i,t,g)=>i.some(e=>e.drink.id==="ayran")},
+  {id:"kahvef",icon:"☕",name:"Kahve Sever",      desc:"Türk kahvesi ekledin",            color:"#4E342E",tier:"bronze",check:(i,t,g)=>i.some(e=>e.drink.cat==="kahve")},
+  {id:"bozaf", icon:"🍺",name:"Boza Ustası",     desc:"Geleneksel boza içtin",           color:"#FF8F00",tier:"bronze",check:(i,t,g)=>i.some(e=>e.drink.id==="boza")},
+
+  // ── Silver (orta — biraz çeşitlilik / tutarlılık gerekir) ──
+  {id:"goal",  icon:"🎯",name:"Hedef Tamam",     desc:"Günlük hedefini tamamladın!",     color:"#4CAF50",tier:"silver",check:(i,t,g)=>t>=g},
+  {id:"ten",   icon:"🔟",name:"10 Kayıt",        desc:"Bir günde 10 kez içecek ekledin", color:"#03A9F4",tier:"silver",check:(i,t,g)=>i.length>=10},
+  {id:"var",   icon:"🌈",name:"Çeşitlilik",      desc:"Bir günde 4 farklı içecek",       color:"#9C27B0",tier:"silver",check:(i,t,g)=>new Set(i.map(e=>e.drink.id)).size>=4},
+  {id:"hlth",  icon:"💚",name:"Sağlıklı Seçim",  desc:"3+ kayıt, hepsi şekersiz",        color:"#8BC34A",tier:"silver",check:(i,t,g)=>i.length>=3&&i.every(e=>e.drink.sug<0.5)},
+  {id:"herb",  icon:"🌿",name:"Bitki Uzmanı",    desc:"Bir günde 3 farklı bitki çayı",   color:"#4CAF50",tier:"silver",check:(i,t,g)=>new Set(i.filter(e=>e.drink.cat==="bitki").map(e=>e.drink.id)).size>=3},
+  {id:"caff",  icon:"☕",name:"Kafein Dozu",      desc:"Bir günde 3 kafeinli içecek",     color:"#795548",tier:"silver",check:(i,t,g)=>i.filter(e=>e.drink.caff>0).length>=3},
+  {id:"pure",  icon:"💧",name:"Saf Su",          desc:"Sadece su ile 1500ml",            color:"#2196F3",tier:"silver",check:(i,t,g)=>i.filter(e=>["water","maden"].includes(e.drink.id)).reduce((s,e)=>s+e.amount,0)>=1500},
+  {id:"2L",    icon:"🪣",name:"2 Litre",         desc:"2000 ml geçildi",                 color:"#0288D1",tier:"silver",check:(i,t,g)=>t>=2000},
+  {id:"nosg",  icon:"🚫",name:"Şekersiz Gün",    desc:"5+ kayıt, hiç şeker yok",         color:"#F44336",tier:"silver",check:(i,t,g)=>i.length>=5&&i.every(e=>e.drink.sug<1)},
+  {id:"allct", icon:"🏆",name:"Koleksiyoncu",    desc:"Bir günde 5 kategoriden içecek",  color:"#E91E63",tier:"silver",check:(i,t,g)=>new Set(i.map(e=>e.drink.cat)).size>=5},
+  {id:"nightowl",icon:"🦉",name:"Gece Yarısı Susuzluğu",desc:"00:00–04:00 arası kayıt",  color:"#5C6BC0",tier:"silver",check:(i,t,g)=>i.some(e=>{const h=parseInt(e.time);return h>=0&&h<4;})},
+  {id:"bothends",icon:"🌗",name:"Gün Doğumu-Batımı",desc:"Aynı gün sabah 7'den önce ve gece 23'ten sonra kayıt",color:"#7986CB",tier:"silver",check:(i,t,g)=>i.some(e=>parseInt(e.time)<7)&&i.some(e=>parseInt(e.time)>=23)},
+
+  // ── Gold (zor — yüksek hacim / mükemmellik gerekir) ──
+  {id:"3L",    icon:"🏺",name:"3 Litre",         desc:"3000 ml geçildi — güçlü gün!",    color:"#01579B",tier:"gold",check:(i,t,g)=>t>=3000},
+  {id:"4L",    icon:"🌌",name:"4 Litre Canavarı",desc:"4000 ml — gerçek bir rekor!",     color:"#283593",tier:"gold",check:(i,t,g)=>t>=4000},
+  {id:"perfect10",icon:"💯",name:"Mükemmel Onluk",desc:"Bir günde 10+ kayıt VE hedef tamamlandı",color:"#FFB300",tier:"gold",check:(i,t,g)=>i.length>=10&&t>=g},
+  {id:"allcat_nosug",icon:"🥗",name:"Dengeli Usta",desc:"5 kategoriden içecek, hepsi şekersiz/az şekerli",color:"#43A047",tier:"gold",check:(i,t,g)=>new Set(i.map(e=>e.drink.cat)).size>=5&&i.every(e=>e.drink.sug<=3)},
+  {id:"earlyandgoal",icon:"🌄",name:"Şampiyon Sabahı",desc:"Sabah 9'dan önce başla, hedefi tamamla",color:"#FB8C00",tier:"gold",check:(i,t,g)=>t>=g&&i.some(e=>parseInt(e.time)<9)},
+  {id:"every_cat_drink",icon:"🍹",name:"Tadım Turu",desc:"Bir günde 8+ farklı içecek türü",color:"#AB47BC",tier:"gold",check:(i,t,g)=>new Set(i.map(e=>e.drink.id)).size>=8},
+
+  // ── Legendary (gerçekten zor — çoklu gün / seri gerekir, history'den okunur) ──
+  {id:"streak3",  icon:"🔥",name:"3 Günlük Seri", desc:"3 gün üst üste hedefi tamamla",   color:"#FF7043",tier:"legendary",check:(i,t,g,hist)=>checkStreak(hist,g,3)},
+  {id:"streak7",  icon:"⚡",name:"Haftalık Şampiyon",desc:"7 gün üst üste hedefi tamamla! Efsane.",color:"#FFD600",tier:"legendary",check:(i,t,g,hist)=>checkStreak(hist,g,7)},
+  {id:"badgemaster",icon:"👑",name:"Rozet Ustası",desc:"15 farklı rozet kazandın",        color:"#D4AF37",tier:"legendary",check:(i,t,g,hist,earnedCount)=>earnedCount>=15},
+];
+
+/* Son N günün her birinde hedefin tamamlanıp tamamlanmadığını history kaydından kontrol eder. */
+function checkStreak(history, goal, n){
+  if(!history) return false;
+  for(let k=0;k<n;k++){
+    const d=new Date(); d.setDate(d.getDate()-k);
+    const key=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+    if(!(history[key]>=goal)) return false;
+  }
+  return true;
+}
+/* Bugünden geriye, kesintisiz hedef tamamlanan gün sayısını döndürür (WaterMinder/HydroCoach tarzı "streak"). */
+function getCurrentStreak(history, goal){
+  if(!history) return 0;
+  let n=0;
+  for(let k=0;k<365;k++){
+    const d=new Date(); d.setDate(d.getDate()-k);
+    const key=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+    if(history[key]>=goal) n++; else break;
+  }
+  return n;
+}
+const TIER_INFO={
+  bronze:   {label:"Bronz",   ring:"#CD7F32", glow:"#CD7F3266"},
+  silver:   {label:"Gümüş",   ring:"#B0BEC5", glow:"#B0BEC566"},
+  gold:     {label:"Altın",   ring:"#FFC107", glow:"#FFC10788"},
+  legendary:{label:"Efsanevi",ring:"#E040FB", glow:"#E040FBAA"},
+};
+
+/* ─── Oda (Room) Sistemi ──────────────────────────────────────
+   window.storage shared:true modu ile ortak liderlik tablosu.
+   Her kullanıcı KENDİ anahtarına yazar (room:{KOD}:{isim}) — bu sayede
+   iki kişi aynı anda güncelleme yapsa bile "son yazan kazanır" çakışması
+   yaşanmaz (herkesin verisi ayrı satırda durur). Okurken oda altındaki
+   tüm üye anahtarları listelenip birleştirilir.
+──────────────────────────────────────────────────────────────── */
+function makeRoomCode(){
+  return Math.random().toString(36).substring(2,8).toUpperCase();
+}
+function memberKey(roomCode,name){
+  // İsimdeki özel karakterleri temizle (anahtar kısıtlaması: boşluk/eğik çizgi/tırnak yok)
+  const safe=(name||"kullanici").replace(/[^a-zA-Z0-9ğüşöçİĞÜŞÖÇı]/g,"_").slice(0,40);
+  return `room:${roomCode}:${safe}`;
+}
+async function pushRoomData(roomCode, myEntry){
+  if(!roomCode) return;
+  try{
+    await window.storage.set(memberKey(roomCode,myEntry.name), JSON.stringify(myEntry), true);
+  }catch{}
+}
+async function fetchRoomData(roomCode){
+  if(!roomCode) return [];
+  try{
+    const list=await window.storage.list(`room:${roomCode}:`, true);
+    if(!list?.keys?.length) return [];
+    const results=await Promise.all(
+      list.keys.map(async k=>{
+        try{ const r=await window.storage.get(k,true); return r?JSON.parse(r.value):null; }
+        catch{ return null; }
+      })
+    );
+    const members=results.filter(Boolean);
+    // 24 saatten eski kayıtları gösterme (günlük yarışma)
+    return members.filter(m=>Date.now()-m.updated<86400000);
+  }catch{ return []; }
+}
+
+/* ─── DSvg ────────────────────────────────────────────────── */
+function DSvg({sk,size=48}){
+  return <div style={{width:size,height:size,flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center"}} dangerouslySetInnerHTML={{__html:SV[sk]||SV.water}}/>;
+}
+
+/* ─── DRINK CARD ────────────────────────────────────────────
+   Sabit düzen (top-down):
+     padding-top: 10px
+     İkon alanı: 48px  (beyaz arka plan, yuvarlak)
+     Boşluk: 6px
+     İsim alanı: 28px  (2 satır max, font 9px, net)
+     Boşluk: 4px
+     Etiket alanı: 16px  (Şekerli 🍬 / Şekersiz ✓ — pill badge)
+     padding-bottom: 8px
+   Toplam yükseklik: 120px
+─────────────────────────────────────────────────────────────── */
+function DrinkCard({d,sel,onClick,index=0}){
+  /* Şeker durumu:
+     sug === 0 ve su/maden değilse → Şekersiz (yeşil)
+     sug > 0 && sug <= 3           → Az Şeker (sarı)
+     sug > 3                       → Şekerli (turuncu)
+     su/maden                      → etiket yok (zaten saf su) */
+  const isPure = ["water","maden"].includes(d.id);
+  let sugarLabel = null;
+  if(!isPure){
+    if(d.sug === 0)        sugarLabel = {txt:"Şekersiz", bg:"#E8F5E9", color:"#2E7D32"};
+    else if(d.sug <= 3)    sugarLabel = {txt:"Az Şeker", bg:"#FFF8E1", color:"#F57F17"};
+    else                   sugarLabel = {txt:"Şekerli",  bg:"#FFF3E0", color:"#E64A19"};
+  }
+  const [pressed,setPressed]=useState(false);
+
+  return(
+    <button
+      onClick={onClick}
+      onPointerDown={()=>setPressed(true)}
+      onPointerUp={()=>setPressed(false)}
+      onPointerLeave={()=>setPressed(false)}
+      style={{
+      display:"flex",flexDirection:"column",alignItems:"center",
+      width:"100%",height:128,
+      padding:"10px 4px 8px",
+      borderRadius:16,
+      border:`2px solid ${sel?d.color:"#E8EEFF"}`,
+      background:sel?d.bg:"#F8FAFF",
+      cursor:"pointer",
+      transition:"border-color .15s, background .15s, box-shadow .15s, transform .12s cubic-bezier(.34,1.56,.64,1)",
+      boxShadow:sel?`0 4px 14px ${d.color}55`:"0 1px 4px rgba(0,0,0,.06)",
+      gap:0,
+      animation:`cardPop .38s cubic-bezier(.34,1.2,.64,1) ${Math.min(index*0.035,0.4)}s both`,
+      transform:pressed?"scale(.92)":"scale(1)",
+    }}>
+
+      {/* ── İkon alanı — 48px, hafif arka plan ── */}
+      <div style={{
+        width:48,height:48,flexShrink:0,
+        display:"flex",alignItems:"center",justifyContent:"center",
+        borderRadius:12,
+        background:sel?`${d.color}18`:"rgba(13,71,161,.05)",
+        transition:"transform .18s cubic-bezier(.34,1.56,.64,1)",
+        transform:pressed?"scale(1.1) rotate(-4deg)":"scale(1)",
+      }}>
+        <DSvg sk={d.sk} size={38}/>
+      </div>
+
+      {/* ── İsim — icon'dan net ayrık, dikey ortalı, 2 satıra kadar ── */}
+      <div style={{
+        marginTop:8,
+        width:"100%",minHeight:24,
+        display:"flex",alignItems:"center",justifyContent:"center",
+        padding:"0 2px",flexShrink:0,
+      }}>
+        <span style={{
+          fontSize:8.5,fontWeight:700,
+          color:sel?d.dark:"#37474F",
+          textAlign:"center",lineHeight:1.3,
+          display:"-webkit-box",
+          WebkitLineClamp:2,
+          WebkitBoxOrient:"vertical",
+          overflow:"hidden",
+          width:"100%",
+        }}>{d.name}</span>
+      </div>
+
+      {/* ── Etiket pill — net ayrık, alt sırada ── */}
+      <div style={{marginTop:6,height:16,width:"100%",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+        {sugarLabel&&(
+          <span style={{
+            fontSize:7.5,fontWeight:800,
+            color:sugarLabel.color,
+            background:sugarLabel.bg,
+            border:`1px solid ${sugarLabel.color}44`,
+            borderRadius:20,
+            padding:"1px 5px",
+            lineHeight:1,letterSpacing:.1,
+          }}>{sugarLabel.txt}</span>
+        )}
+        {isPure&&sel&&(
+          <span style={{fontSize:7,color:d.dark,fontWeight:700}}>★ Son</span>
+        )}
+      </div>
+    </button>
+  );
+}
+
+/* ─── Vertical Slider ─────────────────────────────────────── */
+function VSlider({value,onChange,min=50,max=2000,accent="#2196F3"}){
+  const ref=useRef(null);
+  const pct=1-(value-min)/(max-min);
+  const calc=useCallback((cy)=>{
+    const r=ref.current?.getBoundingClientRect();if(!r)return value;
+    return Math.round(Math.min(max,Math.max(min,min+(1-(cy-r.top)/r.height)*(max-min))));
+  },[min,max,value]);
+  useEffect(()=>{
+    const el=ref.current;if(!el)return;
+    const mv=e=>{e.preventDefault();onChange(calc(e.touches?.[0]?.clientY??e.clientY));};
+    const up=()=>{window.removeEventListener("mousemove",mv);window.removeEventListener("mouseup",up);window.removeEventListener("touchmove",mv);window.removeEventListener("touchend",up);};
+    const dn=e=>{e.preventDefault();onChange(calc(e.touches?.[0]?.clientY??e.clientY));window.addEventListener("mousemove",mv,{passive:false});window.addEventListener("mouseup",up);window.addEventListener("touchmove",mv,{passive:false});window.addEventListener("touchend",up);};
+    el.addEventListener("mousedown",dn);el.addEventListener("touchstart",dn,{passive:false});
+    return()=>{el.removeEventListener("mousedown",dn);el.removeEventListener("touchstart",dn);};
+  },[calc,onChange]);
+  const ticks=[];for(let v=min;v<=max;v+=100)ticks.push({v,p:1-(v-min)/(max-min)});
+  return(
+    <div style={{display:"flex",flexDirection:"column",alignItems:"center",height:"100%",gap:8,userSelect:"none"}}>
+      <button onPointerDown={e=>{e.preventDefault();onChange(Math.min(max,value+10));}} style={CB}>+</button>
+      <div ref={ref} style={{flex:1,width:40,position:"relative",cursor:"ns-resize",touchAction:"none"}}>
+        <div style={{position:"absolute",left:"50%",top:0,bottom:0,width:4,transform:"translateX(-50%)",background:"rgba(255,255,255,.18)",borderRadius:2}}/>
+        <div style={{position:"absolute",left:"50%",bottom:0,width:4,height:`${(1-pct)*100}%`,transform:"translateX(-50%)",background:"rgba(255,255,255,.88)",borderRadius:2,transition:"height .05s"}}/>
+        {ticks.map(({v,p})=><div key={v} style={{position:"absolute",top:`${p*100}%`,left:"50%",transform:"translate(-50%,-50%)",width:v%500===0?16:8,height:1.5,background:"rgba(255,255,255,.3)",borderRadius:1}}/>)}
+        <div style={{position:"absolute",top:`${pct*100}%`,left:"50%",transform:"translate(-50%,-50%)",width:28,height:28,borderRadius:"50%",background:"white",boxShadow:"0 2px 12px rgba(0,0,0,.3)",zIndex:3,display:"flex",alignItems:"center",justifyContent:"center",transition:"top .05s"}}>
+          <div style={{width:10,height:10,borderRadius:"50%",background:accent}}/>
+        </div>
+        <div style={{position:"absolute",top:`${pct*100}%`,right:"calc(100% + 8px)",transform:"translateY(-50%)",fontSize:38,fontWeight:900,color:"white",textShadow:"0 2px 8px rgba(0,0,0,.28)",whiteSpace:"nowrap",pointerEvents:"none",transition:"top .05s"}}>{value}</div>
+      </div>
+      <button onPointerDown={e=>{e.preventDefault();onChange(Math.max(min,value-10));}} style={CB}>−</button>
+    </div>
+  );
+}
+const CB={width:40,height:40,borderRadius:"50%",border:"2px solid rgba(255,255,255,.35)",background:"rgba(255,255,255,.12)",color:"white",fontSize:20,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"inherit",fontWeight:700};
+
+/* ─── Bottom Sheet ────────────────────────────────────────── */
+function Sheet({open,onClose,children,h="64%"}){
+  const [show,setShow]=useState(false);
+  useEffect(()=>{if(open)setTimeout(()=>setShow(true),10);else setShow(false);},[open]);
+  if(!open&&!show)return null;
+  return(
+    <div style={{position:"absolute",inset:0,zIndex:400,display:"flex",flexDirection:"column",justifyContent:"flex-end"}}>
+      <div onClick={onClose} style={{position:"absolute",inset:0,background:show?"rgba(13,71,161,.38)":"transparent",backdropFilter:show?"blur(4px)":"none",transition:"all .3s"}}/>
+      <div style={{position:"relative",zIndex:1,animation:show?"shU .34s cubic-bezier(.32,1,.64,1) both":"none",display:"flex",flexDirection:"column",height:h}}>
+        <svg viewBox="0 0 400 22" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none" style={{width:"100%",height:22,display:"block",flexShrink:0}}>
+          <path d="M0,22 L0,11 Q50,0 100,8 Q150,16 200,6 Q250,-4 300,6 Q350,16 400,8 L400,22 Z" fill="white"/>
+        </svg>
+        <div style={{background:"white",flex:1,overflowY:"auto",display:"flex",flexDirection:"column"}}>
+          {children}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ─── Drink Picker ────────────────────────────────────────── */
+/* ─── Özel İçecek Ekleme Formu ────────────────────────────────
+   Kullanıcı menüde olmayan bir içeceği kendi ekleyebilir.
+   Drinkie ve benzeri popüler uygulamalardaki "add custom drink"
+   özelliğinin sadeleştirilmiş, Türkçe versiyonu. */
+const CUSTOM_COLORS = [
+  {c:"#2196F3",d:"#0D47A1",bg:"#E3F2FD"}, {c:"#00ACC1",d:"#006064",bg:"#E0F7FA"},
+  {c:"#66BB6A",d:"#2E7D32",bg:"#E8F5E9"}, {c:"#FFA726",d:"#E65100",bg:"#FFF3E0"},
+  {c:"#EF5350",d:"#B71C1C",bg:"#FFEBEE"}, {c:"#AB47BC",d:"#4A148C",bg:"#F3E5F5"},
+  {c:"#8D6E63",d:"#3E2723",bg:"#EFEBE9"}, {c:"#EC407A",d:"#880E4F",bg:"#FCE4EC"},
+];
+function AddCustomDrinkForm({open,onClose,onSave}){
+  const [name,setName]=useState("");
+  const [cat,setCat]=useState("diger");
+  const [colorIdx,setColorIdx]=useState(0);
+  const [waterPct,setWaterPct]=useState(95);
+  const [cal,setCal]=useState("");
+  const [sug,setSug]=useState("");
+  const [caff,setCaff]=useState("");
+
+  const reset=()=>{setName("");setCat("diger");setColorIdx(0);setWaterPct(95);setCal("");setSug("");setCaff("");};
+
+  const save=()=>{
+    if(!name.trim()) return;
+    const chosen=CUSTOM_COLORS[colorIdx];
+    onSave({
+      id:`custom_${Date.now()}`,
+      name:name.trim().slice(0,24),
+      sub:"Özel İçecek",
+      cat, color:chosen.c, dark:chosen.d, bg:chosen.bg,
+      sk:"custom",
+      w:waterPct/100,
+      cal:Number(cal)||0, sug:Number(sug)||0, caff:Number(caff)||0, prot:0,
+      isCustom:true,
+    });
+    reset();
+    onClose();
+  };
+
+  return(
+    <Sheet open={open} onClose={()=>{reset();onClose();}} h="76%">
+      <div style={{padding:"4px 16px 10px",flexShrink:0}}>
+        <div style={{width:36,height:4,background:"#E0E7FF",borderRadius:2,margin:"0 auto 12px"}}/>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+          <div style={{fontSize:14,fontWeight:800,color:"#1565C0",letterSpacing:.4}}>✨ ÖZEL İÇECEK EKLE</div>
+          <button onClick={()=>{reset();onClose();}} style={{width:28,height:28,borderRadius:"50%",background:"#F0F4FF",border:"none",cursor:"pointer",fontSize:15,display:"flex",alignItems:"center",justifyContent:"center",color:"#607D8B"}}>✕</button>
+        </div>
+      </div>
+
+      <div style={{flex:1,overflowY:"auto",padding:"0 16px 16px"}}>
+        {/* Canlı önizleme */}
+        <div style={{display:"flex",justifyContent:"center",marginBottom:16}}>
+          <div style={{
+            width:70,height:70,borderRadius:20,
+            background:CUSTOM_COLORS[colorIdx].bg,
+            border:`2.5px solid ${CUSTOM_COLORS[colorIdx].c}`,
+            display:"flex",alignItems:"center",justifyContent:"center",
+            transition:"all .25s cubic-bezier(.34,1.56,.64,1)",
+            animation:"cardPop .4s cubic-bezier(.34,1.2,.64,1)",
+          }}>
+            <DSvg sk="custom" size={46}/>
+          </div>
+        </div>
+
+        {/* İsim */}
+        <div style={{marginBottom:16}}>
+          <div style={{fontSize:11,fontWeight:700,color:"#607D8B",marginBottom:6}}>İçecek Adı</div>
+          <input value={name} onChange={e=>setName(e.target.value)} placeholder="Örn: Ev Yapımı Şerbet"
+            maxLength={24}
+            style={{width:"100%",padding:"12px 14px",borderRadius:12,border:"2px solid #E3F2FD",outline:"none",fontFamily:"inherit",fontSize:14,fontWeight:600,color:"#263238",boxSizing:"border-box"}}
+            onFocus={e=>e.target.style.borderColor=CUSTOM_COLORS[colorIdx].c}
+            onBlur={e=>e.target.style.borderColor="#E3F2FD"}/>
+        </div>
+
+        {/* Renk seçimi */}
+        <div style={{marginBottom:16}}>
+          <div style={{fontSize:11,fontWeight:700,color:"#607D8B",marginBottom:8}}>Renk</div>
+          <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+            {CUSTOM_COLORS.map((cc,i)=>(
+              <button key={i} onClick={()=>setColorIdx(i)} style={{
+                width:34,height:34,borderRadius:10,border:colorIdx===i?`3px solid ${cc.d}`:"2px solid transparent",
+                background:cc.c,cursor:"pointer",
+                transform:colorIdx===i?"scale(1.15)":"scale(1)",
+                transition:"transform .18s cubic-bezier(.34,1.56,.64,1)",
+                boxShadow:colorIdx===i?`0 3px 10px ${cc.c}66`:"none",
+              }}/>
+            ))}
+          </div>
+        </div>
+
+        {/* Kategori */}
+        <div style={{marginBottom:16}}>
+          <div style={{fontSize:11,fontWeight:700,color:"#607D8B",marginBottom:8}}>Kategori</div>
+          <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+            {CATS.map(({k,l})=>(
+              <button key={k} onClick={()=>setCat(k)} style={{
+                padding:"6px 13px",borderRadius:16,border:"none",cursor:"pointer",
+                fontSize:11,fontWeight:700,
+                background:cat===k?"#1565C0":"#EEF2FF",
+                color:cat===k?"white":"#607D8B",
+                transition:"all .18s",
+              }}>{l}</button>
+            ))}
+          </div>
+        </div>
+
+        {/* Su içeriği yüzdesi */}
+        <div style={{marginBottom:16}}>
+          <div style={{display:"flex",justifyContent:"space-between",marginBottom:6}}>
+            <span style={{fontSize:11,fontWeight:700,color:"#607D8B"}}>Su İçeriği</span>
+            <span style={{fontSize:12,fontWeight:800,color:CUSTOM_COLORS[colorIdx].c}}>%{waterPct}</span>
+          </div>
+          <input type="range" min={50} max={100} value={waterPct} onChange={e=>setWaterPct(Number(e.target.value))}
+            style={{width:"100%",accentColor:CUSTOM_COLORS[colorIdx].c}}/>
+          <div style={{fontSize:9,color:"#B0BEC5",marginTop:2}}>Örn: su %100, ayran/kahve %90-97, meyve suyu %85-90</div>
+        </div>
+
+        {/* Opsiyonel besin değerleri */}
+        <div style={{fontSize:11,fontWeight:700,color:"#607D8B",marginBottom:8}}>Besin Değerleri (100ml için, opsiyonel)</div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginBottom:20}}>
+          {[["Kalori",cal,setCal,"kcal"],["Şeker",sug,setSug,"g"],["Kafein",caff,setCaff,"mg"]].map(([l,v,setter,u])=>(
+            <div key={l}>
+              <input type="number" min={0} value={v} onChange={e=>setter(e.target.value)} placeholder="0"
+                style={{width:"100%",padding:"9px 8px",borderRadius:10,border:"1.5px solid #E3F2FD",outline:"none",fontFamily:"inherit",fontSize:13,fontWeight:700,color:"#263238",textAlign:"center",boxSizing:"border-box"}}/>
+              <div style={{fontSize:8.5,color:"#B0BEC5",textAlign:"center",marginTop:3}}>{l} ({u})</div>
+            </div>
+          ))}
+        </div>
+
+        <button onClick={save} disabled={!name.trim()} style={{
+          width:"100%",padding:14,borderRadius:14,border:"none",
+          background:name.trim()?CUSTOM_COLORS[colorIdx].c:"#EEF2FF",
+          color:name.trim()?"white":"#B0BEC5",
+          fontSize:14,fontWeight:800,cursor:name.trim()?"pointer":"not-allowed",
+          transition:"all .2s",
+        }}>✨ İçeceği Kaydet</button>
+      </div>
+    </Sheet>
+  );
+}
+
+function DrinkPicker({open,onClose,lastDrink,onSelect,customDrinks,onAddCustom}){
+  const [cat,setCat]=useState("su");
+  const [showAddForm,setShowAddForm]=useState(false);
+  const allDrinks=[...DK,...customDrinks];
+  const grp={};CATS.forEach(({k})=>{grp[k]=allDrinks.filter(d=>d.cat===k);});
+
+  return(
+    <Sheet open={open} onClose={onClose} h="64%">
+      <div style={{padding:"4px 14px 8px",flexShrink:0}}>
+        <div style={{width:36,height:4,background:"#E0E7FF",borderRadius:2,margin:"0 auto 10px"}}/>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+          <div style={{fontSize:14,fontWeight:800,color:"#1565C0",letterSpacing:.4}}>İÇECEK SEÇ</div>
+          <button onClick={onClose} style={{width:28,height:28,borderRadius:"50%",background:"#F0F4FF",border:"none",cursor:"pointer",fontSize:15,display:"flex",alignItems:"center",justifyContent:"center",color:"#607D8B"}}>✕</button>
+        </div>
+      </div>
+      <div style={{display:"flex",gap:5,padding:"0 12px 10px",overflowX:"auto",flexShrink:0}}>
+        {CATS.map(({k,l})=>(
+          <button key={k} onClick={()=>setCat(k)} style={{padding:"5px 12px",borderRadius:18,border:"none",cursor:"pointer",fontSize:10.5,fontWeight:700,whiteSpace:"nowrap",flexShrink:0,background:cat===k?"#1565C0":"#EEF2FF",color:cat===k?"white":"#607D8B",transition:"all .18s"}}>
+            {l}
+          </button>
+        ))}
+      </div>
+      {/* 4-col grid — cards fixed height, clear spacing, staggered entrance */}
+      <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10,padding:"0 10px 20px",overflowY:"auto",alignContent:"start"}}>
+        {(grp[cat]||[]).map((d,i)=>(
+          <DrinkCard key={d.id} d={d} sel={lastDrink?.id===d.id} onClick={()=>onSelect(d)} index={i}/>
+        ))}
+        {/* Kategori sonunda: menüde olmayan içeceği kendin ekle */}
+        <button
+          onClick={()=>setShowAddForm(true)}
+          style={{
+            display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",
+            width:"100%",height:128,
+            borderRadius:16,border:"2px dashed #C5CAE9",
+            background:"#FAFBFF",cursor:"pointer",gap:6,
+            animation:`cardPop .38s cubic-bezier(.34,1.2,.64,1) ${Math.min((grp[cat]||[]).length*0.035,0.4)}s both`,
+            transition:"border-color .18s, background .18s",
+          }}
+          onMouseEnter={e=>{e.currentTarget.style.borderColor="#7986CB";e.currentTarget.style.background="#F0F1FF";}}
+          onMouseLeave={e=>{e.currentTarget.style.borderColor="#C5CAE9";e.currentTarget.style.background="#FAFBFF";}}
+        >
+          <div style={{
+            width:40,height:40,borderRadius:"50%",background:"#EDE7F6",
+            display:"flex",alignItems:"center",justifyContent:"center",
+            fontSize:20,color:"#5E35B1",fontWeight:900,
+            animation:"plusSpin .4s cubic-bezier(.34,1.56,.64,1) both",
+          }}>+</div>
+          <span style={{fontSize:8.5,fontWeight:700,color:"#5E35B1",textAlign:"center",lineHeight:1.3}}>Kendin Ekle</span>
+        </button>
+      </div>
+
+      <AddCustomDrinkForm open={showAddForm} onClose={()=>setShowAddForm(false)} onSave={onAddCustom}/>
+    </Sheet>
+  );
+}
+
+/* ─── Amount Screen ───────────────────────────────────────── */
+function AmountScreen({drink,onAdd,onBack,onClose}){
+  const [amount,setAmount]=useState(200);
+  const lvl=Math.min((amount/500)*100,100);
+  return(
+    <div className="fin" style={{position:"absolute",inset:0,zIndex:500,background:`linear-gradient(170deg,#0D47A1 0%,#1565C0 38%,${drink.dark}cc 100%)`,display:"flex",flexDirection:"column"}}>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"12px 14px",flexShrink:0}}>
+        <button onClick={onBack} style={{background:"none",border:"none",color:"rgba(255,255,255,.75)",fontSize:17,cursor:"pointer",display:"flex",alignItems:"center",gap:4}}>
+          ← <span style={{fontSize:12,fontWeight:600}}>Geri</span>
+        </button>
+        <div style={{fontSize:11,fontWeight:800,color:"#64B5F6",letterSpacing:.8}}>MİKTAR BELİRLE</div>
+        <button onClick={onClose} style={{background:"none",border:"none",color:"rgba(255,255,255,.75)",fontSize:20,cursor:"pointer"}}>✕</button>
+      </div>
+      <div style={{display:"flex",alignItems:"center",gap:10,padding:"0 14px 6px",flexShrink:0}}>
+        <div style={{animation:"cardPop .4s cubic-bezier(.34,1.2,.64,1) both"}}>
+          <DSvg sk={drink.sk} size={40}/>
+        </div>
+        <div style={{minWidth:0,animation:"sIU .35s ease .05s both"}}>
+          <div style={{fontSize:15,fontWeight:900,color:"white",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{drink.name}</div>
+          <div style={{fontSize:10,color:"#FFCA28",fontWeight:700}}>🔥 {Math.round((amount/100)*drink.cal)} kal · {drink.sub}</div>
+        </div>
+      </div>
+      <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",padding:"0 14px",gap:14,minHeight:0}}>
+        <div style={{position:"relative",width:120,height:190}}>
+          <svg viewBox="0 0 120 190" width="120" height="190" style={{position:"absolute",inset:0}}>
+            <defs>
+              <linearGradient id="gfl" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor={drink.color} stopOpacity=".58"/>
+                <stop offset="100%" stopColor={drink.dark} stopOpacity=".97"/>
+              </linearGradient>
+              <linearGradient id="glassShine" x1="0" y1="0" x2="1" y2="0">
+                <stop offset="0%" stopColor="white" stopOpacity="0"/>
+                <stop offset="100%" stopColor="white" stopOpacity=".4"/>
+              </linearGradient>
+              <clipPath id="gcl"><path d="M12,5 L108,5 Q112,5 112,9 L99,185 Q99,189 95,189 L25,189 Q21,189 21,185 L8,9 Q8,5 12,5Z"/></clipPath>
+            </defs>
+
+            {/* Bardak gövdesi */}
+            <path d="M12,5 L108,5 Q112,5 112,9 L99,185 Q99,189 95,189 L25,189 Q21,189 21,185 L8,9 Q8,5 12,5Z" fill="rgba(255,255,255,.06)" stroke="rgba(255,255,255,.6)" strokeWidth="2.2"/>
+
+            {/* Su gövdesi */}
+            <rect x="0" y={190-lvl*1.82} width="120" height={lvl*1.82+10} fill="url(#gfl)" clipPath="url(#gcl)" style={{transition:"y .55s cubic-bezier(.34,1.2,.64,1)"}}/>
+
+            {/* Organik, çift katmanlı yüzey dalgası — farklı genlik/frekanslı iki sinüs üst üste,
+                gerçek sıvı yüzeyi gibi düzensiz ama yumuşak hareket eder */}
+            <g clipPath="url(#gcl)" style={{transition:"transform .55s cubic-bezier(.34,1.2,.64,1)"}} transform={`translate(0,${190-lvl*1.82})`}>
+              <g style={{animation:"waveFlow 4.1s linear infinite"}}>
+                <path d="M-120,1 Q-100,-5 -80,1 Q-60,8 -40,2 Q-20,-6 0,1 Q20,8 40,2 Q60,-5 80,1 Q100,8 120,2 Q140,-5 160,1 Q180,8 200,2 Q220,-5 240,1 L240,20 L-120,20 Z" fill="rgba(255,255,255,.18)"/>
+              </g>
+              <g style={{animation:"waveFlow 6.5s linear infinite reverse"}}>
+                <path d="M-120,3 Q-95,10 -70,4 Q-45,-3 -20,3 Q5,10 30,4 Q55,-3 80,3 Q105,10 130,4 Q155,-3 180,3 Q205,10 230,4 L230,22 L-120,22 Z" fill="rgba(255,255,255,.26)"/>
+              </g>
+            </g>
+
+            {/* Cam parlaklığı — gerçekçi eğrisel ışık vurgusu (düz çizgi yerine yumuşak şerit) */}
+            <path d="M24,14 Q20,95 26,178" fill="none" stroke="url(#glassShine)" strokeWidth="6" strokeLinecap="round" opacity=".55" clipPath="url(#gcl)"/>
+          </svg>
+
+          {/* Yükselen kabarcıklar — su seviyesi arttıkça doluluk hissi güçlensin */}
+          {lvl>3&&(
+            <div style={{position:"absolute",inset:0,overflow:"hidden",clipPath:"inset(0)"}}>
+              {[18,42,64,84].map((leftPct,i)=>(
+                <div key={i} style={{
+                  position:"absolute",left:`${leftPct}%`,bottom:`${Math.max(8,(190-(190-lvl*1.82))/190*8)}px`,
+                  width:4+((i%2)*2),height:4+((i%2)*2),borderRadius:"50%",
+                  background:"rgba(255,255,255,.55)",
+                  animation:`bubbleRise ${1.8+i*0.4}s ease-in ${i*0.5}s infinite`,
+                }}/>
+              ))}
+            </div>
+          )}
+        </div>
+        <div style={{display:"flex",alignItems:"center",gap:4,height:190}}>
+          <div style={{fontSize:9,color:"rgba(255,255,255,.6)",fontWeight:700,writingMode:"vertical-rl",transform:"rotate(180deg)"}}>ml</div>
+          <VSlider value={amount} onChange={setAmount} min={50} max={2000} accent={drink.color}/>
+        </div>
+      </div>
+      <div style={{margin:"0 12px 8px",background:"rgba(255,255,255,.1)",borderRadius:12,padding:"8px 10px",flexShrink:0}}>
+        <div style={{display:"flex",justifyContent:"space-around"}}>
+          {[["💧","Su",`${Math.round(amount*drink.w)}ml`],["🔥","Kal",`${Math.round((amount/100)*drink.cal)}`],["☕","Kaff",`${Math.round((amount/100)*drink.caff)}mg`],["💪","Prot",`${Math.round((amount/100)*drink.prot*10)/10}g`]].map(([ic,l,v])=>(
+            <div key={l} style={{textAlign:"center"}}>
+              <div style={{fontSize:12}}>{ic}</div>
+              <div style={{fontSize:8.5,color:"rgba(255,255,255,.55)",marginTop:1}}>{l}</div>
+              <div style={{fontSize:11,fontWeight:800,color:"white"}}>{v}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+      <div style={{display:"flex",gap:5,padding:"0 12px 8px",justifyContent:"center",flexShrink:0,flexWrap:"wrap"}}>
+        {[50,100,150,180,200,250,300,350,400,500].map(a=>(
+          <button key={a} onPointerDown={e=>{e.preventDefault();setAmount(a);}} style={{padding:"4px 7px",borderRadius:8,fontSize:9.5,fontWeight:700,cursor:"pointer",background:amount===a?"white":"rgba(255,255,255,.15)",color:amount===a?"#0D47A1":"rgba(255,255,255,.8)",border:"none",transition:"all .18s cubic-bezier(.34,1.56,.64,1)",transform:amount===a?"scale(1.12)":"scale(1)"}}>{a}</button>
+        ))}
+      </div>
+      <div style={{paddingBottom:20,display:"flex",justifyContent:"center",flexShrink:0}}>
+        <button onClick={()=>onAdd(drink,amount)} onPointerDown={e=>{e.currentTarget.style.transform="scale(.85)";}} onPointerUp={e=>{e.currentTarget.style.transform="scale(1)";}} onPointerLeave={e=>{e.currentTarget.style.transform="scale(1)";}} style={{width:56,height:56,borderRadius:"50%",background:"white",border:"none",cursor:"pointer",fontSize:22,display:"flex",alignItems:"center",justifyContent:"center",boxShadow:"0 6px 22px rgba(0,0,0,.32)",color:"#0D47A1",fontWeight:900,animation:"pls 1.5s ease-in-out infinite",transition:"transform .15s cubic-bezier(.34,1.56,.64,1)"}}>✓</button>
+      </div>
+    </div>
+  );
+}
+
+/* ─── Badge Popup ─────────────────────────────────────────── */
+function BadgePop({badge,onDone}){
+  const [vis,setVis]=useState(false);
+  useEffect(()=>{
+    const t1=setTimeout(()=>setVis(true),30);
+    const t2=setTimeout(()=>{setVis(false);setTimeout(onDone,400);},3200);
+    return()=>{clearTimeout(t1);clearTimeout(t2);};
+  },[]);
+  return(
+    <>
+      {/* Arka plan — sadece opacity ile fade, transform yok (blur ile çakışmasın) */}
+      <div style={{position:"absolute",inset:0,zIndex:600,background:"rgba(10,20,50,.6)",backdropFilter:"blur(4px)",opacity:vis?1:0,transition:"opacity .35s ease"}}/>
+      {/* Kart — kendi başına net bir pop-in animasyonu, dış wrapper'dan bağımsız */}
+      <div style={{position:"absolute",inset:0,zIndex:601,display:"flex",alignItems:"center",justifyContent:"center",padding:"0 28px",pointerEvents:"none"}}>
+        <div style={{
+          background:"white",borderRadius:24,padding:"22px 28px",textAlign:"center",
+          boxShadow:"0 24px 60px rgba(0,0,0,.4)",border:`3px solid ${badge.color}`,
+          opacity:vis?1:0,
+          transform:vis?"scale(1) translateY(0)":"scale(.55) translateY(30px)",
+          transition:"transform .45s cubic-bezier(.34,1.56,.64,1), opacity .3s ease",
+          maxWidth:280,
+        }}>
+          <div style={{fontSize:13,marginBottom:6,letterSpacing:2}}>✨ ROZET KAZANILDI ✨</div>
+          <div style={{
+            fontSize:50,marginBottom:8,display:"inline-block",
+            animation:vis?"bSp .55s cubic-bezier(.34,1.56,.64,1) .15s both":"none",
+          }}>{badge.icon}</div>
+          <div style={{fontSize:18,fontWeight:900,color:"#1A237E",lineHeight:1.3}}>{badge.name}</div>
+          <div style={{fontSize:12,color:"#607D8B",marginTop:4,lineHeight:1.4}}>{badge.desc}</div>
+        </div>
+      </div>
+      {/* Konfeti — ayrı katman, karta hiç değmiyor */}
+      <div style={{position:"absolute",inset:0,zIndex:602,pointerEvents:"none",overflow:"hidden"}}>
+        {vis&&Array.from({length:18},(_,i)=>({e:["🎉","⭐","✨","🎊"][i%4],l:Math.random()*92+3,d:Math.random()*.5,dur:1.6+Math.random()*1.1})).map((it,i)=>(
+          <div key={i} style={{position:"absolute",left:`${it.l}%`,bottom:"-6%",fontSize:16,animation:`cUp ${it.dur}s ease-out ${it.d}s forwards`}}>{it.e}</div>
+        ))}
+      </div>
+    </>
+  );
+}
+
+/* ─── Goal Celebration — günlük hedef tamamlanınca özel kutlama ──
+   WaterMinder/Waterllama tarzı: büyük konfeti yağmuru + tebrik mesajı.
+   Rozet popup'ından farklı olarak günün "tamamlandı" anını kutlar,
+   içinde varsa seri (streak) bilgisini de gösterir. */
+function GoalCelebration({total,goal,streak,onDone}){
+  const [vis,setVis]=useState(false);
+  useEffect(()=>{
+    const t1=setTimeout(()=>setVis(true),30);
+    const t2=setTimeout(()=>{setVis(false);setTimeout(onDone,450);},3600);
+    return()=>{clearTimeout(t1);clearTimeout(t2);};
+  },[]);
+  return(
+    <>
+      {/* Arka plan — sadece opacity fade, transform yok */}
+      <div style={{position:"absolute",inset:0,zIndex:610,background:"rgba(13,71,161,.65)",backdropFilter:"blur(6px)",opacity:vis?1:0,transition:"opacity .4s ease"}}/>
+      {/* Kart — bağımsız pop-in animasyonu */}
+      <div style={{position:"absolute",inset:0,zIndex:611,display:"flex",alignItems:"center",justifyContent:"center",padding:"0 24px",pointerEvents:"none"}}>
+        <div style={{
+          background:"white",borderRadius:26,padding:"28px 30px",textAlign:"center",
+          boxShadow:"0 28px 70px rgba(0,0,0,.45)",border:"3px solid #4CAF50",
+          opacity:vis?1:0,
+          transform:vis?"scale(1) translateY(0)":"scale(.55) translateY(35px)",
+          transition:"transform .5s cubic-bezier(.34,1.56,.64,1), opacity .35s ease",
+          maxWidth:300,
+        }}>
+          <div style={{fontSize:13,marginBottom:6,letterSpacing:1.5,color:"#4CAF50",fontWeight:800}}>🎉 TEBRİKLER 🎉</div>
+          <div style={{
+            fontSize:56,marginBottom:8,display:"inline-block",
+            animation:vis?"bSp .55s cubic-bezier(.34,1.56,.64,1) .15s both":"none",
+          }}>🏆</div>
+          <div style={{fontSize:20,fontWeight:900,color:"#1A237E",lineHeight:1.3}}>Günlük Hedef Tamamlandı!</div>
+          <div style={{fontSize:12.5,color:"#607D8B",marginTop:5}}>{total} ml / {goal} ml — harika gidiyorsun</div>
+          {streak>=2&&(
+            <div style={{marginTop:12,display:"inline-flex",alignItems:"center",gap:6,background:"linear-gradient(135deg,#FF6F00,#FFB300)",borderRadius:14,padding:"6px 14px"}}>
+              <span style={{fontSize:16}}>🔥</span>
+              <span style={{fontSize:13,fontWeight:900,color:"white"}}>{streak} günlük seri!</span>
+            </div>
+          )}
+        </div>
+      </div>
+      {/* Konfeti — ayrı katman */}
+      <div style={{position:"absolute",inset:0,zIndex:612,pointerEvents:"none",overflow:"hidden"}}>
+        {vis&&Array.from({length:26},(_,i)=>({e:["🎉","💧","✨","🎊","⭐","🏆"][i%6],l:Math.random()*94+2,d:Math.random()*.7,dur:1.9+Math.random()*1.2})).map((it,i)=>(
+          <div key={i} style={{position:"absolute",left:`${it.l}%`,bottom:"-6%",fontSize:19,animation:`cUp ${it.dur}s ease-out ${it.d}s forwards`}}>{it.e}</div>
+        ))}
+      </div>
+    </>
+  );
+}
+
+/* ─── Manual Input Field ──────────────────────────────────── */
+function NumInput({label,value,onChange,min,max,step=1,unit="",suffix=""}){
+  const [raw,setRaw]=useState(String(step===0.1?value.toFixed(1):value));
+  const [focus,setFocus]=useState(false);
+
+  const commit=(v)=>{
+    const n=parseFloat(v);
+    if(!isNaN(n)){
+      const clamped=Math.max(min,Math.min(max,Math.round(n/step)*step));
+      onChange(Math.round(clamped*10)/10);
+      setRaw(step===0.1?clamped.toFixed(1):String(Math.round(clamped)));
+    } else {
+      setRaw(step===0.1?value.toFixed(1):String(value));
+    }
+  };
+
+  useEffect(()=>{
+    if(!focus) setRaw(step===0.1?value.toFixed(1):String(value));
+  },[value,focus,step]);
+
+  return(
+    <div style={{marginBottom:18}}>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
+        <div style={{fontSize:11,fontWeight:600,color:"rgba(255,255,255,.7)"}}>{label}</div>
+        {/* Manual text input */}
+        <div style={{display:"flex",alignItems:"center",gap:4}}>
+          <input
+            type="number"
+            value={raw}
+            onChange={e=>setRaw(e.target.value)}
+            onFocus={()=>setFocus(true)}
+            onBlur={()=>{setFocus(false);commit(raw);}}
+            onKeyDown={e=>{if(e.key==="Enter"){e.target.blur();commit(raw);}}}
+            style={{
+              width:72,textAlign:"right",
+              fontSize:26,fontWeight:900,color:"white",
+              background:"rgba(255,255,255,.15)",
+              border:`2px solid ${focus?"white":"rgba(255,255,255,.3)"}`,
+              borderRadius:10,padding:"4px 8px",
+              fontFamily:"inherit",outline:"none",transition:"border .2s",
+            }}/>
+          <span style={{fontSize:13,fontWeight:600,color:"rgba(255,255,255,.7)"}}>{unit}</span>
+        </div>
+      </div>
+      {/* Slider */}
+      <div style={{position:"relative"}}>
+        <div style={{height:5,borderRadius:3,background:"rgba(255,255,255,.18)",overflow:"visible"}}>
+          <div style={{height:"100%",width:`${((value-min)/(max-min))*100}%`,background:"rgba(255,255,255,.8)",borderRadius:3,transition:"width .1s"}}/>
+        </div>
+        <input type="range" min={min} max={max} step={step} value={value}
+          onChange={e=>onChange(Math.round(Number(e.target.value)*10)/10)}
+          style={{position:"absolute",top:"50%",left:0,right:0,transform:"translateY(-50%)",height:22,accentColor:"white",margin:0}}/>
+      </div>
+      <div style={{display:"flex",justifyContent:"space-between",marginTop:3}}>
+        <span style={{fontSize:8.5,color:"rgba(255,255,255,.35)"}}>{min}{unit}</span>
+        <span style={{fontSize:8.5,color:"rgba(255,255,255,.35)"}}>{max}{unit}</span>
+      </div>
+    </div>
+  );
+}
+
+/* ─── Setup Wizard ────────────────────────────────────────── */
+function Setup({onDone}){
+  const [step,setStep]=useState(0);
+  const [dir,setDir]=useState(1);
+  const [f,setF]=useState({name:"",gender:"male",age:28,weight:75.0,height:175,activity:"light"});
+  const sf=(k,v)=>setF(p=>({...p,[k]:v}));
+  const prev=calcGoal({...f,tempC:22});
+  const go=(n)=>{setDir(n>step?1:-1);setStep(n);};
+
+  /* Konum izni durumu: "idle" | "checking" | "granted" | "denied" | "unsupported" */
+  const [geoStatus,setGeoStatus]=useState("idle");
+
+  const requestLocation = useCallback(()=>{
+    if(!("geolocation" in navigator)){ setGeoStatus("unsupported"); return; }
+    setGeoStatus("checking");
+    navigator.geolocation.getCurrentPosition(
+      ()=>setGeoStatus("granted"),
+      ()=>setGeoStatus("denied"),
+      {timeout:10000,maximumAge:300000}
+    );
+  },[]);
+
+  // Son sayfaya (sonuç ekranı) gelindiğinde konum izni otomatik istenir
+  useEffect(()=>{
+    if(step===4 && geoStatus==="idle") requestLocation();
+  },[step,geoStatus,requestLocation]);
+
+  const ACTS=[
+    ["sedentary","🛋️","Hareketsiz","Masa başı, az hareket"],
+    ["light","🚶","Hafif Aktif","Haftada 1-3 gün spor"],
+    ["moderate","🏋️","Orta Aktif","Haftada 3-5 gün spor"],
+    ["active","🚴","Çok Aktif","Haftada 6-7 gün spor"],
+    ["veryActive","⚡","Ekstra Aktif","Günde 2x antrenman"],
+  ];
+
+  const pages=[
+    /* 0 — welcome */
+    <div key="p0" className={dir>0?"sir":"sil"} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:20,padding:"0 28px"}}>
+      <div style={{fontSize:72,animation:"pls 2s ease-in-out infinite"}}>💧</div>
+      <div style={{textAlign:"center"}}>
+        <div style={{fontSize:28,fontWeight:900,color:"white",marginBottom:10}}>Su Takipçisi</div>
+        <div style={{fontSize:14,color:"rgba(255,255,255,.7)",lineHeight:1.7}}>Kişisel günlük su hedefinizi<br/>bilimsel formüllerle hesaplayalım.</div>
+      </div>
+      <button onClick={()=>go(1)} style={{...SP,padding:"16px 52px",fontSize:16,marginTop:4}}>Başlayalım →</button>
+      <div style={{fontSize:9,color:"rgba(255,255,255,.35)",letterSpacing:.5}}>IOM · EFSA · NASEM · WHO</div>
+    </div>,
+
+    /* 1 — name + gender */
+    <div key="p1" className={dir>0?"sir":"sil"} style={{display:"flex",flexDirection:"column",gap:18}}>
+      <div style={{textAlign:"center",fontSize:40}}>👤</div>
+      <h2 style={SH}>Sizi Tanıyalım</h2>
+      <div>
+        <div style={SL}>Adınız</div>
+        <input value={f.name} onChange={e=>sf("name",e.target.value)} placeholder="İsminizi yazın"
+          style={{width:"100%",padding:"14px 16px",borderRadius:14,border:"2px solid rgba(255,255,255,.28)",outline:"none",fontFamily:"inherit",fontSize:16,background:"rgba(255,255,255,.13)",color:"white",boxSizing:"border-box"}}
+          onFocus={e=>e.target.style.borderColor="rgba(255,255,255,.7)"}
+          onBlur={e=>e.target.style.borderColor="rgba(255,255,255,.28)"}/>
+      </div>
+      <div>
+        <div style={SL}>Cinsiyet</div>
+        <div style={{display:"flex",gap:12}}>
+          {[["male","👨","Erkek"],["female","👩","Kadın"]].map(([v,ic,l])=>(
+            <button key={v} onClick={()=>sf("gender",v)} style={{flex:1,padding:"16px 12px",borderRadius:16,border:`2px solid ${f.gender===v?"white":"rgba(255,255,255,.28)"}`,background:f.gender===v?"white":"rgba(255,255,255,.1)",color:f.gender===v?"#0D47A1":"white",fontWeight:700,fontSize:15,cursor:"pointer",fontFamily:"inherit",transition:"all .22s",display:"flex",flexDirection:"column",alignItems:"center",gap:4}}>
+              <span style={{fontSize:28}}>{ic}</span><span>{l}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>,
+
+    /* 2 — body with manual text input + slider */
+    <div key="p2" className={dir>0?"sir":"sil"} style={{display:"flex",flexDirection:"column",gap:4}}>
+      <div style={{textAlign:"center",fontSize:36}}>📏</div>
+      <h2 style={SH}>Vücut Ölçüleri</h2>
+      <div style={{fontSize:10,color:"rgba(255,255,255,.5)",textAlign:"center",marginBottom:8}}>Sayıya dokunup klavyeyle yazabilir ya da kaydırabilirsiniz</div>
+      <NumInput label="🎂 Yaş" value={f.age} onChange={v=>sf("age",v)} min={10} max={100} step={1} unit=" yaş"/>
+      <NumInput label="⚖️ Ağırlık" value={f.weight} onChange={v=>sf("weight",v)} min={30} max={200} step={0.1} unit=" kg"/>
+      <NumInput label="📐 Boy" value={f.height} onChange={v=>sf("height",v)} min={120} max={220} step={1} unit=" cm"/>
+    </div>,
+
+    /* 3 — activity */
+    <div key="p3" className={dir>0?"sir":"sil"} style={{display:"flex",flexDirection:"column",gap:9}}>
+      <div style={{textAlign:"center",fontSize:36}}>🏃</div>
+      <h2 style={SH}>Aktivite Seviyesi</h2>
+      {ACTS.map(([v,ic,nm,dc])=>(
+        <button key={v} onClick={()=>sf("activity",v)} style={{display:"flex",alignItems:"center",gap:12,padding:"12px 14px",borderRadius:14,border:`2px solid ${f.activity===v?"white":"rgba(255,255,255,.18)"}`,background:f.activity===v?"rgba(255,255,255,.2)":"rgba(255,255,255,.07)",cursor:"pointer",textAlign:"left",transition:"all .2s"}}>
+          <span style={{fontSize:22}}>{ic}</span>
+          <div style={{flex:1}}><div style={{fontWeight:700,color:"white",fontSize:13}}>{nm}</div><div style={{fontSize:10,color:"rgba(255,255,255,.55)"}}>{dc}</div></div>
+          <div style={{width:22,height:22,borderRadius:"50%",background:f.activity===v?"white":"rgba(255,255,255,.15)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,color:f.activity===v?"#0D47A1":"transparent",flexShrink:0,transition:"all .2s"}}>✓</div>
+        </button>
+      ))}
+    </div>,
+
+    /* 4 — result */
+    <div key="p4" className={dir>0?"sir":"sil"} style={{display:"flex",flexDirection:"column",gap:14}}>
+      <div style={{textAlign:"center",fontSize:36}}>📍</div>
+      <h2 style={SH}>Hedefiniz Hazır!</h2>
+
+      {/* Konum izni durumu — gerçek zamanlı */}
+      <div style={{
+        background: geoStatus==="granted" ? "rgba(76,175,80,.18)" : geoStatus==="denied"||geoStatus==="unsupported" ? "rgba(244,67,54,.16)" : "rgba(255,255,255,.12)",
+        borderRadius:14,padding:"14px",
+        border:`1px solid ${geoStatus==="granted"?"rgba(129,199,132,.4)":geoStatus==="denied"||geoStatus==="unsupported"?"rgba(239,154,154,.4)":"rgba(255,255,255,.22)"}`,
+        textAlign:"center",
+      }}>
+        {geoStatus==="checking"&&(
+          <>
+            <div style={{fontSize:12,color:"rgba(255,255,255,.8)",marginBottom:3,display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>
+              <span style={{animation:"pls 1.1s ease-in-out infinite"}}>📍</span> Konum izni isteniyor…
+            </div>
+            <div style={{fontSize:10,color:"rgba(255,255,255,.5)",lineHeight:1.6}}>Tarayıcının izin penceresini onaylayın</div>
+          </>
+        )}
+        {geoStatus==="granted"&&(
+          <>
+            <div style={{fontSize:12,color:"#C8E6C9",fontWeight:700,marginBottom:3}}>✅ Konum izni verildi</div>
+            <div style={{fontSize:10,color:"rgba(255,255,255,.6)",lineHeight:1.6}}>GPS konumunuza göre su hedefi her gün otomatik güncellenir.</div>
+          </>
+        )}
+        {geoStatus==="denied"&&(
+          <>
+            <div style={{fontSize:12,color:"#FFCDD2",fontWeight:700,marginBottom:3}}>❌ Konum izni verilmedi</div>
+            <div style={{fontSize:10,color:"rgba(255,255,255,.6)",lineHeight:1.6,marginBottom:8}}>Doğru hava durumu/sıcaklık temelli hedef için konum izni gerekir.</div>
+            <button onClick={requestLocation} style={{padding:"7px 16px",borderRadius:10,border:"none",background:"white",color:"#C62828",fontSize:11,fontWeight:800,cursor:"pointer"}}>🔄 Tekrar İzin İste</button>
+          </>
+        )}
+        {geoStatus==="unsupported"&&(
+          <>
+            <div style={{fontSize:12,color:"#FFCDD2",fontWeight:700,marginBottom:3}}>⚠️ Bu cihaz/tarayıcı konum desteklemiyor</div>
+            <div style={{fontSize:10,color:"rgba(255,255,255,.6)",lineHeight:1.6}}>Varsayılan sıcaklık değeriyle devam edebilirsiniz.</div>
+          </>
+        )}
+        {geoStatus==="idle"&&(
+          <div style={{fontSize:12,color:"rgba(255,255,255,.65)"}}>🌡️ Hava durumu otomatik algılanır</div>
+        )}
+      </div>
+
+      <div style={{background:"rgba(255,255,255,.12)",borderRadius:16,padding:"22px 14px 18px",textAlign:"center",border:"1px solid rgba(255,255,255,.22)"}}>
+        <div style={{fontSize:10,color:"rgba(255,255,255,.6)",marginBottom:8}}>📊 Günlük Su Hedefi</div>
+        <div style={{fontSize:54,fontWeight:900,color:"white",lineHeight:1,animation:"nB .5s ease",transformOrigin:"center"}}>{prev}</div>
+        <div style={{fontSize:13,color:"rgba(255,255,255,.7)",marginTop:10}}>ml / gün</div>
+        <div style={{fontSize:9,color:"rgba(255,255,255,.4)",marginTop:8}}>IOM 2005 · EFSA 2010 · NASEM 2020 · WHO</div>
+      </div>
+      <div style={{background:"rgba(255,255,255,.08)",borderRadius:12,padding:"10px 12px",fontSize:11,color:"rgba(255,255,255,.6)",lineHeight:1.8}}>
+        {f.name} · {f.gender==="male"?"Erkek":"Kadın"} · {f.age} yaş · {f.weight.toFixed(1)} kg · {f.height} cm<br/>
+        {{"sedentary":"Hareketsiz","light":"Hafif Aktif","moderate":"Orta Aktif","active":"Çok Aktif","veryActive":"Ekstra Aktif"}[f.activity]}
+      </div>
+    </div>,
+  ];
+
+  return(
+    <div style={{width:"100%",height:"100%",display:"flex",flexDirection:"column",background:"linear-gradient(160deg,#0D47A1,#1976D2 55%,#29B6F6)",overflow:"hidden"}}>
+      {step>0&&(
+        <div style={{display:"flex",justifyContent:"center",gap:7,padding:"16px 0 0",flexShrink:0}}>
+          {pages.slice(1).map((_,i)=>(
+            <div key={i} onClick={()=>i<step-1&&go(i+1)}
+              style={{width:i===step-1?26:7,height:7,borderRadius:4,background:i<=step-1?"white":"rgba(255,255,255,.28)",transition:"all .3s",cursor:i<step-1?"pointer":"default"}}/>
+          ))}
+        </div>
+      )}
+      <div style={{flex:1,overflowY:"auto",padding:step===0?"0":"14px 20px 6px",display:"flex",flexDirection:"column",justifyContent:step===0?"center":"flex-start"}}>
+        {pages[step]}
+      </div>
+      {step>0&&(
+        <div style={{padding:"8px 20px 24px",display:"flex",flexDirection:"column",gap:8,flexShrink:0}}>
+          <div style={{display:"flex",gap:9}}>
+            {step>1&&<button onClick={()=>go(step-1)} style={SS}>← Geri</button>}
+            {step<pages.length-1
+              ?<button onClick={()=>go(step+1)} style={{...SP,flex:1}}>Devam →</button>
+              :(()=>{
+                  const canStart = geoStatus==="granted" || geoStatus==="unsupported";
+                  return (
+                    <button
+                      onClick={()=>canStart && onDone({...f,goal:prev})}
+                      disabled={!canStart}
+                      style={{...SP,flex:1,opacity:canStart?1:.45,cursor:canStart?"pointer":"not-allowed"}}
+                    >
+                      {canStart ? "Başlayalım 💧" : geoStatus==="denied" ? "🔒 Konum İzni Gerekli" : "⏳ Bekleniyor…"}
+                    </button>
+                  );
+                })()
+            }
+          </div>
+          {step===pages.length-1 && geoStatus==="denied" && (
+            <div style={{fontSize:9.5,color:"rgba(255,255,255,.55)",textAlign:"center"}}>Devam etmek için yukarıdan konum iznini onaylayın</div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+const SH={color:"white",fontSize:19,margin:"0 0 2px",fontWeight:900,textAlign:"center"};
+const SL={fontSize:11,fontWeight:600,color:"rgba(255,255,255,.75)",display:"block",marginBottom:7};
+const SP={padding:"13px",borderRadius:14,border:"none",background:"white",color:"#0D47A1",fontSize:14,fontWeight:800,cursor:"pointer",fontFamily:"inherit",transition:"all .2s"};
+const SS={padding:"13px 18px",borderRadius:14,border:"2px solid rgba(255,255,255,.38)",background:"rgba(255,255,255,.08)",color:"white",fontSize:14,fontWeight:700,cursor:"pointer",fontFamily:"inherit"};
+
+/* ─── Persistent Storage Helpers ─────────────────────────────
+   claude.ai artifact ortamında localStorage çalışmaz.
+   window.storage API'si (kişisel, shared:false) kullanılarak
+   profil / kayıtlar / rozetler / bildirim ayarları kalıcı hale getirilir.
+   Her gün otomatik sıfırlanan "bugünün kayıtları" tarih damgasıyla saklanır.
+─────────────────────────────────────────────────────────────── */
+const todayKey = () => {
+  const d=new Date();
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+};
+async function storageGet(key){
+  try{ const r=await window.storage.get(key,false); return r?JSON.parse(r.value):null; }
+  catch{ return null; }
+}
+async function storageSet(key,value){
+  try{ await window.storage.set(key,JSON.stringify(value),false); return true; }
+  catch{ return false; }
+}
+
+/* ─── Notification Check ──────────────────────────────────── */
+async function checkNotifPermission(){
+  if(!("Notification" in window)) return "unsupported";
+  if(Notification.permission==="granted") return "granted";
+  if(Notification.permission==="denied") return "denied";
+  const res=await Notification.requestPermission();
+  return res;
+}
+const vibrateSupported = typeof navigator!=="undefined" && "vibrate" in navigator;
+
+/* Gerçek, duyulabilir bir bildirim sesi — tarayıcının "silent" bayrağına bağımlı değil,
+   Web Audio API ile garanti çalar (iki nazik "pip" tonu, su damlası hissi). */
+function playNotifSound(){
+  try{
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    const ctx = new Ctx();
+    const playTone=(freq,start,dur,vol)=>{
+      const osc=ctx.createOscillator(), gain=ctx.createGain();
+      osc.type="sine"; osc.frequency.value=freq;
+      osc.connect(gain); gain.connect(ctx.destination);
+      gain.gain.setValueAtTime(0, ctx.currentTime+start);
+      gain.gain.linearRampToValueAtTime(vol, ctx.currentTime+start+0.02);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime+start+dur);
+      osc.start(ctx.currentTime+start); osc.stop(ctx.currentTime+start+dur+0.02);
+    };
+    playTone(880,0,0.16,0.18);
+    playTone(1175,0.16,0.22,0.16);
+    setTimeout(()=>ctx.close(),900);
+  }catch{ /* Web Audio engellenmiş olabilir (örn. kullanıcı etkileşimi olmadan) */ }
+}
+
+/* Test ve gerçek hatırlatmalar için ortak tetikleyici.
+   Sessiz saatler (uyku penceresi) içindeyse hatırlatma gönderilmez — Waterllama'nın
+   "quieted around your sleep window" özelliğiyle aynı mantık. */
+function isQuietHour(notif){
+  const h = new Date().getHours();
+  const {quietStart,quietEnd} = notif;
+  if(quietStart===quietEnd) return false;
+  if(quietStart < quietEnd) return h>=quietStart && h<quietEnd;
+  return h>=quietStart || h<quietEnd; // gece yarısını aşan aralık (örn 22→07)
+}
+function fireReminder(notif, total, remaining, force=false){
+  if(!notif.enabled || notif.permission!=="granted") return;
+  if(!force && isQuietHour(notif)) return;
+  try{
+    const n = new Notification("💧 Su Takipçisi", {
+      body: remaining>0 ? `Bugün ${total}ml içtin. Hâlâ ${remaining}ml kaldı!` : "🎉 Harika! Günlük hedefini tamamladın.",
+      silent: true, // tarayıcının kendi sesini susturuyoruz, kendi sesimizi garanti çalıyoruz
+      tag: "water-reminder",
+    });
+    if(notif.sound) playNotifSound();
+    if(notif.vibrate && vibrateSupported) navigator.vibrate([180,90,180]);
+    setTimeout(()=>n.close(), 8000);
+  }catch{ /* Notification constructor can throw in some contexts (e.g. iOS Safari) */ }
+}
+
+/* ─── Main App ────────────────────────────────────────────── */
+export default function App(){
+  const [loaded,setLoaded]=useState(false);
+  const [profile,setProfile]=useState(null);
+  const [screen,setScreen]=useState("home");
+  const [intake,setIntake]=useState([]);
+  const [showPicker,setShowPicker]=useState(false);
+  const [selDrink,setSelDrink]=useState(null);
+  const [weather,setWeather]=useState({temp:22,icon:"⛅",city:"İstanbul",loading:true,error:null});
+  const [goal,setGoal]=useState(2500);
+  const [earned,setEarned]=useState([]);
+  const [popBadge,setPopBadge]=useState(null);
+  const [goalCelebration,setGoalCelebration]=useState(false);
+  const goalCelebratedToday=useRef(false);
+  const [notif,setNotif]=useState({enabled:false,interval:2,sound:true,vibrate:true,permission:"default",quietStart:22,quietEnd:7});
+  const [editProfile,setEditProfile]=useState(false);
+  const [testToast,setTestToast]=useState(false);
+  const [chartView,setChartView]=useState("week"); // "week" | "month" — Geçmiş sekmesi grafik görünümü
+  const [roomCode,setRoomCode]=useState(""); // aktif oda kodu (boşsa oda yok)
+  const [roomInput,setRoomInput]=useState(""); // kullanıcının girdiği oda kodu
+  const [roomMembers,setRoomMembers]=useState([]); // oda üyeleri [{name,total,goal,earned,streak}]
+  const [roomTab,setRoomTab]=useState("leaderboard"); // "leaderboard"|"badges"
+  const [customDrinks,setCustomDrinks]=useState([]); // kullanıcının kendi eklediği içecekler
+  const [history,setHistory]=useState({}); // { "2026-06-17": 3100, ... } — gerçek geçmiş, sahte veri yok
+  const notifTimer=useRef(null);
+
+  /* ── İlk yükleme: kayıtlı profil / bugünün kayıtları / rozetler / bildirim ayarları ── */
+  useEffect(()=>{
+    (async()=>{
+      const savedProfile = await storageGet("profile");
+      const savedNotif   = await storageGet("notif");
+      const savedEarned  = await storageGet("earned");
+      const savedDay     = await storageGet("intake-day");
+      const savedIntake  = await storageGet("intake");
+      const savedCustom  = await storageGet("customDrinks");
+
+      if(savedProfile){ setProfile(savedProfile); setGoal(savedProfile.goal); }
+      if(savedNotif){
+        // Tarayıcı izni her oturumda farklı olabileceği için gerçek izinle senkronize et
+        const realPerm = ("Notification" in window) ? Notification.permission : "unsupported";
+        setNotif({...savedNotif, permission:realPerm, enabled: savedNotif.enabled && realPerm==="granted"});
+      }
+      if(savedEarned) setEarned(savedEarned);
+      if(savedCustom) setCustomDrinks(savedCustom);
+      // Gün değiştiyse bugünün kayıtlarını sıfırla (su takibi günlüktür)
+      if(savedDay===todayKey() && savedIntake) setIntake(savedIntake);
+      else storageSet("intake-day", todayKey());
+
+      setLoaded(true);
+    })();
+  },[]);
+
+  /* ── Her değişiklikte kaydet ── */
+  useEffect(()=>{ if(loaded && profile) storageSet("profile", profile); },[profile,loaded]);
+  useEffect(()=>{ if(loaded) storageSet("customDrinks", customDrinks); },[customDrinks,loaded]);
+  useEffect(()=>{ if(loaded) storageSet("notif", notif); },[notif,loaded]);
+  useEffect(()=>{ if(loaded) storageSet("earned", earned); },[earned,loaded]);
+  useEffect(()=>{ if(loaded){ storageSet("intake", intake); storageSet("intake-day", todayKey()); } },[intake,loaded]);
+
+  /* ── Konum + hava durumu — SADECE gerçek GPS verisi gösterilir ──
+     Konum alınamadığı sürece "konum alınıyor" durumunda kalınır,
+     rastgele/varsayılan bir sıcaklık ASLA gösterilmez.
+     Hedef hesaplaması da gerçek sıcaklık gelene kadar 22°C ile geçici
+     olarak yapılır ama arayüzde "tahmini" olarak işaretlenir. */
+  const fetchWeather = useCallback(()=>{
+    if(!profile) return;
+    if(!("geolocation" in navigator)){
+      setWeather({temp:null,icon:"📍",city:"Bu cihaz konum desteklemiyor",loading:false,error:"unsupported"});
+      return;
+    }
+    setWeather(p=>({...p,loading:true,error:null}));
+    navigator.geolocation.getCurrentPosition(
+      async (pos)=>{
+        try{
+          const {latitude:lat,longitude:lon}=pos.coords;
+          const [mR,gR]=await Promise.all([
+            fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,weather_code&timezone=auto`),
+            fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json&accept-language=tr`),
+          ]);
+          if(!mR.ok) throw new Error("weather-api-failed");
+          const m=await mR.json(),g=await gR.json().catch(()=>({}));
+          const temp=Math.round(m.current.temperature_2m);
+          const night=new Date().getHours()<6||new Date().getHours()>21;
+          const city=g.address?.city||g.address?.town||g.address?.county||g.address?.state||"Konumunuz";
+          setWeather({temp,icon:wxIcon(m.current.weather_code,night),city,loading:false,error:null});
+          setGoal(calcGoal({...profile,tempC:temp}));
+        }catch{
+          // Hava API'sine erişilemedi — konum doğru ama sıcaklık alınamadı.
+          // Rastgele sıcaklık göstermek yerine "alınamadı" durumunda bırak.
+          setWeather({temp:null,icon:"📍",city:"Sıcaklık alınamadı",loading:false,error:"fetch-failed"});
+        }
+      },
+      (err)=>{
+        // err.code: 1=PERMISSION_DENIED, 2=POSITION_UNAVAILABLE, 3=TIMEOUT
+        const msg = err.code===1 ? "Konum izni verilmedi" : err.code===2 ? "Konum alınamadı" : "Konum zaman aşımı";
+        setWeather({temp:null,icon:"📍",city:msg,loading:false,error:"geo-denied"});
+      },
+      {timeout:10000,maximumAge:300000}
+    );
+  },[profile]);
+
+  useEffect(()=>{
+    if(!profile) return;
+    setGoal(profile.goal); // gerçek sıcaklık gelene kadar profildeki temel hedef kullanılır
+    fetchWeather();
+  },[profile?.name]); // profil ilk oluşturulduğunda bir kez tetiklenir
+
+  /* ── Bildirim zamanlayıcısı — gerçek aralıkla çalışır ── */
+  const intakeRef=useRef(intake); intakeRef.current=intake;
+  const goalRef=useRef(goal); goalRef.current=goal;
+  useEffect(()=>{
+    if(notifTimer.current) clearInterval(notifTimer.current);
+    if(notif.enabled && notif.permission==="granted"){
+      notifTimer.current=setInterval(()=>{
+        const total=intakeRef.current.reduce((s,e)=>s+Math.round(e.amount*e.drink.w),0);
+        const remaining=Math.max(goalRef.current-total,0);
+        fireReminder(notif, total, remaining);
+      },notif.interval*60*60*1000);
+    }
+    return()=>{if(notifTimer.current)clearInterval(notifTimer.current);};
+  },[notif.enabled,notif.interval,notif.sound,notif.vibrate,notif.permission]);
+
+  /* ── Gerçek haftalık geçmiş — sahte veri YOK ──
+     Her gün sonunda (veya gün değiştiğinde) o günün toplamı `history` anahtarına kaydedilir.
+     Henüz hiç kayıt yapılmamış günler için veri gösterilmez ("—"). */
+  useEffect(()=>{ (async()=>{ const h=await storageGet("history"); if(h) setHistory(h); })(); },[]);
+  useEffect(()=>{
+    if(!loaded) return;
+    const total=intake.reduce((s,e)=>s+Math.round(e.amount*e.drink.w),0);
+    // Bugünün toplamını her değişiklikte history'e yansıt (gün sonu kapanışı beklemeye gerek yok)
+    setHistory(prev=>{
+      const next={...prev, [todayKey()]: total};
+      storageSet("history", next);
+      return next;
+    });
+  },[intake,loaded]);
+
+  /* ── badges — history güncellendikten sonra kontrol edilir, çoklu-gün rozetler de doğru çalışır ── */
+  useEffect(()=>{
+    if(!profile||intake.length===0)return;
+    const tot=intake.reduce((s,e)=>s+Math.round(e.amount*e.drink.w),0);
+    for(const b of BD){
+      if(!earned.includes(b.id)&&b.check(intake,tot,goal,history,earned.length)){setEarned(p=>[...p,b.id]);setPopBadge(b);break;}
+    }
+  },[intake,history]);
+
+  /* ── Hedef tamamlama kutlaması — günde bir kez, hedefe TAM o an ulaşıldığında ──
+     "Hedef Tamam" rozeti her zaman 🎯 popup'ı tetikler ama bu, WaterMinder/Waterllama
+     tarzı daha büyük/özel bir "günü bitirdin" anını ayrıca vurgular. Rozet popup'ıyla
+     çakışmaması için rozet popup'ı kapandıktan sonra sıraya girer. */
+  const goalCelebratedDay=useRef(null);
+  useEffect(()=>{
+    if(!loaded) return;
+    const tot=intake.reduce((s,e)=>s+Math.round(e.amount*e.drink.w),0);
+    const dayKey=todayKey();
+    if(goalCelebratedDay.current!==dayKey){
+      goalCelebratedDay.current=dayKey;
+      goalCelebratedToday.current=false;
+    }
+    if(tot>=goal && goal>0 && !goalCelebratedToday.current){
+      goalCelebratedToday.current=true;
+      // Rozet popup'ı varsa önce o kapansın, sonra kutlama gelsin
+      const delay = popBadge ? 3600 : 300;
+      setTimeout(()=>setGoalCelebration(true), delay);
+    }
+  },[intake,goal,loaded]);
+
+  /* ── Oda sistemi — kayıtlı oda kodu yükle ── */
+  useEffect(()=>{
+    (async()=>{
+      const saved=await storageGet("roomCode");
+      if(saved) setRoomCode(saved);
+    })();
+  },[]);
+
+  /* ── Oda güncelleme — kendi verilerimi paylaş, üyeleri çek ── */
+  useEffect(()=>{
+    if(!loaded || !profile || !roomCode) return;
+    const push=async()=>{
+      const myTotal=intake.reduce((s,e)=>s+Math.round(e.amount*e.drink.w),0);
+      // streak'i burada bağımsız hesapla (render scope'una bağımlı değil)
+      const effHist={...history,[todayKey()]:myTotal};
+      const myStreak=getCurrentStreak(effHist,goal);
+      await pushRoomData(roomCode,{
+        name:profile.name||"Kullanıcı",
+        total:myTotal,
+        goal,
+        earnedCount:earned.length,
+        streak:myStreak,
+        updated:Date.now(),
+      });
+      const members=await fetchRoomData(roomCode);
+      setRoomMembers(members.sort((a,b)=>(b.total/b.goal)-(a.total/a.goal)));
+    };
+    push();
+    const iv=setInterval(push,30000);
+    return()=>clearInterval(iv);
+  },[roomCode,intake,loaded,profile,goal,earned.length,history]);
+
+  /* İlk yükleme bitene kadar (storage okunurken) boş ekran yanıp sönmesin */
+  if(!loaded) return(
+    <div style={{width:"100%",height:"100vh",display:"flex",justifyContent:"center",alignItems:"center",background:"#0D47A1"}}>
+      <style>{G}</style>
+      <div style={{fontSize:40,animation:"pls 1.4s ease-in-out infinite"}}>💧</div>
+    </div>
+  );
+
+  if(!profile)return(
+    <div style={{width:"100%",height:"100vh",display:"flex",justifyContent:"center",background:"#0D47A1",overflow:"hidden"}}>
+      <style>{G}</style>
+      <div style={{width:"100%",maxWidth:440,height:"100%"}}>
+        <Setup onDone={p=>{setProfile(p);setGoal(p.goal);}}/>
+      </div>
+    </div>
+  );
+
+  const total=intake.reduce((s,e)=>s+Math.round(e.amount*e.drink.w),0);
+  const pct=Math.min((total/goal)*100,100);
+  const remaining=Math.max(goal-total,0);
+  const last=intake[0]||null;
+  const now=new Date();
+  const T=`${String(now.getHours()).padStart(2,"0")}:${String(now.getMinutes()).padStart(2,"0")}`;
+  const DAYS=["Pazar","Pazartesi","Salı","Çarşamba","Perşembe","Cuma","Cumartesi"];
+  const addDrink=(drink,amount)=>{setIntake(p=>[{id:Date.now(),drink,amount,time:T,waterMl:Math.round(amount*drink.w)},...p]);setSelDrink(null);setShowPicker(false);};
+  const totalCal=intake.reduce((s,e)=>s+Math.round((e.amount/100)*e.drink.cal),0);
+  const totalCaff=intake.reduce((s,e)=>s+Math.round((e.amount/100)*e.drink.caff),0);
+  const totalProt=Math.round(intake.reduce((s,e)=>s+(e.amount/100)*e.drink.prot,0)*10)/10;
+  const TABS=[{id:"home",icon:"💧",label:"Bugün"},{id:"nutrition",icon:"🥗",label:"Beslenme"},{id:"history",icon:"📊",label:"Geçmiş"},{id:"profile",icon:"👤",label:"Profil"}];
+
+  /* ── Gerçek haftalık geçmiş — DOW etiketleriyle son 7 günü hazırla ── */
+
+  const DOW=["Paz","Pzt","Sal","Çar","Per","Cum","Cmt"];
+  const weekData = Array.from({length:7},(_,i)=>{
+    const d=new Date(); d.setDate(d.getDate()-(6-i));
+    const key=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+    const isToday = key===todayKey();
+    const val = isToday ? total : (history[key] ?? null); // null = henüz veri yok
+    return [DOW[d.getDay()], val, isToday];
+  });
+  const maxWeek=Math.max(...weekData.map(([,v])=>v||0), goal);
+
+  /* ── Seri (streak) — bugün dahil, kesintisiz hedef tamamlanan gün sayısı ──
+     Bugünün canlı toplamı history'ye henüz tam yansımamış olabileceği için
+     "etkin geçmiş" olarak bugünü manuel ekleyip hesaplıyoruz. */
+  const effectiveHistory = {...history, [todayKey()]: total};
+  const streak = getCurrentStreak(effectiveHistory, goal);
+
+  /* ── Haftalık özet istatistikleri — WaterMinder/HydroCoach tarzı ── */
+  const weekValues = weekData.map(([,v])=>v).filter(v=>v!==null);
+  const weekAvg = weekValues.length ? Math.round(weekValues.reduce((s,v)=>s+v,0)/weekValues.length) : 0;
+  const weekBest = weekValues.length ? Math.max(...weekValues) : 0;
+  const weekGoalDays = weekValues.filter(v=>v>=goal).length;
+
+  /* ── Önceki hafta (7-13 gün önce) — trend karşılaştırması için ── */
+  const prevWeekValues = Array.from({length:7},(_,i)=>{
+    const d=new Date(); d.setDate(d.getDate()-(13-i));
+    const key=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+    return history[key] ?? null;
+  }).filter(v=>v!==null);
+  const prevWeekAvg = prevWeekValues.length ? Math.round(prevWeekValues.reduce((s,v)=>s+v,0)/prevWeekValues.length) : null;
+  const trendDiff = (prevWeekAvg!==null && weekAvg>0) ? Math.round(((weekAvg-prevWeekAvg)/prevWeekAvg)*100) : null;
+
+  /* ── Aylık görünüm — son 30 gün, gerçek geçmiş verisi (uydurma yok) ── */
+  const monthData = Array.from({length:30},(_,i)=>{
+    const d=new Date(); d.setDate(d.getDate()-(29-i));
+    const key=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+    const isToday = key===todayKey();
+    const val = isToday ? total : (history[key] ?? null);
+    return {day:d.getDate(), val, isToday};
+  });
+  const monthValues = monthData.map(d=>d.val).filter(v=>v!==null);
+  const monthAvg = monthValues.length ? Math.round(monthValues.reduce((s,v)=>s+v,0)/monthValues.length) : 0;
+  const monthGoalDays = monthValues.filter(v=>v>=goal).length;
+  const monthMax = Math.max(...monthData.map(d=>d.val||0), goal);
+
+  return(
+    <div style={{width:"100%",height:"100vh",display:"flex",justifyContent:"center",alignItems:"center",background:"#7B97B4",overflow:"hidden"}}>
+      <style>{G}</style>
+      <div style={{width:390,height:Math.min(844,window.innerHeight),display:"flex",flexDirection:"column",background:"#EEF4FB",position:"relative",overflow:"hidden",borderRadius:window.innerHeight>860?30:0,boxShadow:"0 24px 80px rgba(0,0,0,.4)"}}>
+
+        {/* ── BUGÜN ── */}
+        {screen==="home"&&(
+          <div className="fin" style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
+            <div style={{background:"linear-gradient(155deg,#0D47A1 0%,#1565C0 45%,#1976D2 75%,#42A5F5 100%)",padding:"16px 16px 20px",borderRadius:"0 0 26px 26px",flexShrink:0}}>
+
+              {/* Üst satır: tarih/saat solda küçük, hava durumu pill sağda */}
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
+                <div style={{fontSize:10.5,color:"rgba(255,255,255,.55)",fontWeight:600,letterSpacing:.2}}>
+                  {DAYS[now.getDay()]} · {T}
+                </div>
+
+                {/* Hava durumu — kompakt, tek satır pill */}
+                {weather.loading?(
+                  <div style={{display:"flex",alignItems:"center",gap:5,background:"rgba(255,255,255,.14)",borderRadius:20,padding:"5px 11px"}}>
+                    <span style={{fontSize:11,animation:"pls 1.2s ease-in-out infinite"}}>📍</span>
+                    <span style={{fontSize:10,color:"rgba(255,255,255,.75)",fontWeight:600}}>Konum alınıyor</span>
+                  </div>
+                ):weather.temp===null?(
+                  <button onClick={fetchWeather} style={{display:"flex",alignItems:"center",gap:5,background:"rgba(255,255,255,.16)",border:"none",borderRadius:20,padding:"5px 12px",cursor:"pointer"}}>
+                    <span style={{fontSize:11}}>🔄</span>
+                    <span style={{fontSize:9.5,color:"white",fontWeight:700}}>Tekrar Dene</span>
+                  </button>
+                ):(
+                  <div style={{display:"flex",alignItems:"center",gap:6,background:"rgba(255,255,255,.16)",borderRadius:20,padding:"5px 12px 5px 8px"}}>
+                    <span style={{fontSize:15,lineHeight:1}}>{weather.icon}</span>
+                    <div style={{display:"flex",flexDirection:"column",lineHeight:1.15}}>
+                      <span style={{fontSize:11.5,fontWeight:800,color:"white"}}>{weather.temp}°C</span>
+                      <span style={{fontSize:8,color:"rgba(255,255,255,.6)",fontWeight:600,maxWidth:80,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{weather.city}</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Karşılama satırı — avatar + isim, baskın görsel ağırlık + seri (streak) chip */}
+              <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:14}}>
+                <div style={{
+                  width:42,height:42,borderRadius:14,flexShrink:0,
+                  background:"rgba(255,255,255,.18)",
+                  display:"flex",alignItems:"center",justifyContent:"center",
+                  fontSize:22,border:"1px solid rgba(255,255,255,.22)",
+                }}>
+                  {profile.gender==="male"?"👨":"👩"}
+                </div>
+                <div style={{minWidth:0,flex:1}}>
+                  <div style={{fontSize:17,fontWeight:800,color:"white",lineHeight:1.2}}>
+                    Merhaba, {profile.name||"Kullanıcı"} 👋
+                  </div>
+                  <div style={{fontSize:10.5,color:"rgba(255,255,255,.6)",marginTop:1}}>
+                    Bugün ne kadar su içtin?
+                  </div>
+                </div>
+                {streak>=1&&(
+                  <button onClick={()=>setScreen("history")} title={`${streak} günlük seri — detay için dokun`} style={{
+                    display:"flex",alignItems:"center",gap:4,flexShrink:0,
+                    background: streak>=7 ? "linear-gradient(135deg,#FF6F00,#FFB300)" : streak>=3 ? "rgba(255,143,0,.28)" : "rgba(255,255,255,.16)",
+                    borderRadius:14,padding:"6px 9px",
+                    border: streak>=7 ? "none" : "1px solid rgba(255,255,255,.2)",
+                    boxShadow: streak>=7 ? "0 3px 10px rgba(255,111,0,.5)" : "none",
+                    animation: streak>=3 ? "pls 2.4s ease-in-out infinite" : "none",
+                    cursor:"pointer",
+                  }}>
+                    <span style={{fontSize:14}}>🔥</span>
+                    <span style={{fontSize:13,fontWeight:900,color:"white"}}>{streak}</span>
+                  </button>
+                )}
+              </div>
+
+              <div style={{display:"flex",alignItems:"center",gap:14,justifyContent:"center"}}>
+                {/* Dolan bardak görseli — WaterMinder'ın imzası "dolan silüet" konseptinin
+                    bizim mimariye uygun versiyonu: yüzde arttıkça su seviyesi yükselir. */}
+                <svg viewBox="0 0 56 76" width="50" height="68" style={{flexShrink:0}}>
+                  <defs>
+                    <linearGradient id="homeFillGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#BBDEFB" stopOpacity=".85"/>
+                      <stop offset="100%" stopColor="#FFFFFF" stopOpacity=".95"/>
+                    </linearGradient>
+                    <clipPath id="homeGlassClip">
+                      <path d="M10,5 L46,5 Q48,5 48,7 L43,72 Q43,74 41,74 L15,74 Q13,74 13,72 L8,7 Q8,5 10,5Z"/>
+                    </clipPath>
+                  </defs>
+                  <path d="M10,5 L46,5 Q48,5 48,7 L43,72 Q43,74 41,74 L15,74 Q13,74 13,72 L8,7 Q8,5 10,5Z" fill="rgba(255,255,255,.1)" stroke="rgba(255,255,255,.55)" strokeWidth="2"/>
+                  <rect x="0" y={76-pct*0.69} width="56" height={pct*0.69+8} fill="url(#homeFillGrad)" clipPath="url(#homeGlassClip)" style={{transition:"y .9s cubic-bezier(.34,1.2,.64,1), height .9s cubic-bezier(.34,1.2,.64,1)"}}/>
+                  <path d={`M3,${76-pct*0.69} Q14,${70-pct*0.69} 28,${76-pct*0.69} Q42,${82-pct*0.69} 53,${76-pct*0.69}`} fill="none" stroke="rgba(255,255,255,.7)" strokeWidth="1.4" clipPath="url(#homeGlassClip)" style={{transition:"d .9s"}}/>
+                </svg>
+                <div>
+                  <div style={{display:"flex",alignItems:"baseline",gap:4,marginBottom:5}}>
+                    <span style={{color:"white",fontSize:44,fontWeight:900,lineHeight:1}}>{total}</span>
+                    <span style={{color:"rgba(255,255,255,.46)",fontSize:16}}>/ {goal} ml</span>
+                  </div>
+                  <div style={{height:7,background:"rgba(255,255,255,.2)",borderRadius:4,overflow:"hidden",margin:"0 2px",width:170}}>
+                    <div style={{height:"100%",width:`${pct}%`,background:"white",borderRadius:4,transition:"width .9s cubic-bezier(.34,1.3,.64,1)"}}/>
+                  </div>
+                  <div style={{color:"rgba(255,255,255,.68)",fontSize:10.5,marginTop:4}}>
+                    %{Math.round(pct)} tamamlandı · {remaining>0?`${remaining} ml kaldı`:"🎉 Tebrikler!"}
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div style={{display:"flex",gap:7,margin:"-12px 11px 9px",position:"relative",zIndex:2,flexShrink:0}}>
+              {[["İçilen",`${total}ml`,"#1565C0"],["Kalan",`${remaining}ml`,"#E65100"],["Kayıt",`${intake.length}x`,"#2E7D32"]].map(([l,v,tc])=>(
+                <div key={l} style={{flex:1,background:"white",borderRadius:12,padding:"8px 5px",textAlign:"center",boxShadow:"0 3px 12px rgba(13,71,161,.1)"}}>
+                  <div style={{fontSize:13,fontWeight:800,color:tc}}>{v}</div>
+                  <div style={{fontSize:9,color:"#90A4AE",marginTop:1}}>{l}</div>
+                </div>
+              ))}
+            </div>
+
+            <div style={{flex:1,overflowY:"auto",padding:"0 11px 4px"}}>
+              {intake.length===0?(
+                <div style={{textAlign:"center",marginTop:20}}>
+                  <div style={{fontSize:40,marginBottom:8,animation:"pls 2s ease-in-out infinite",display:"inline-block"}}>💧</div>
+                  <div style={{fontWeight:700,color:"#1565C0",fontSize:14,marginBottom:3}}>Henüz içecek eklenmedi</div>
+                  <div style={{fontSize:11,color:"#90A4AE"}}>+ butonuna basarak başla</div>
+                </div>
+              ):(
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:7}}>
+                  {intake.map((e,i)=>(
+                    <div key={e.id} className="sci" style={{background:"white",borderRadius:13,padding:"9px",boxShadow:"0 2px 7px rgba(13,71,161,.07)",borderLeft:`3px solid ${e.drink.color}`,display:"flex",flexDirection:"column",gap:3,animationDelay:`${i<4?i*.04:0}s`}}>
+                      <div style={{display:"flex",alignItems:"center",gap:5}}>
+                        <DSvg sk={e.drink.sk} size={26}/>
+                        <div style={{minWidth:0}}>
+                          <div style={{fontSize:10.5,fontWeight:700,color:"#263238",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{e.drink.name}</div>
+                          <div style={{fontSize:9,color:"#90A4AE"}}>🕐 {e.time}</div>
+                        </div>
+                      </div>
+                      <div style={{display:"flex",alignItems:"center",gap:4}}>
+                        <div style={{background:e.drink.bg,borderRadius:14,padding:"2px 8px",fontSize:10.5,color:e.drink.color,fontWeight:700}}>{e.amount} ml</div>
+                        <div style={{fontSize:9,color:"#90A4AE"}}>+{e.waterMl}ml</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div style={{flexShrink:0,background:"white",borderTop:"1px solid #E8F0FE",padding:"9px 11px 10px",display:"flex",alignItems:"center",gap:7}}>
+              {last?(
+                <button onClick={()=>addDrink(last.drink,last.amount)} style={{display:"flex",alignItems:"center",gap:6,background:last.drink.bg,border:`1.5px solid ${last.drink.color}`,borderRadius:12,padding:"6px 10px",cursor:"pointer",flex:1,minWidth:0,overflow:"hidden"}}>
+                  <DSvg sk={last.drink.sk} size={20}/>
+                  <div style={{minWidth:0,flex:1}}>
+                    <div style={{fontSize:8.5,color:"#546E7A",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{last.drink.name}</div>
+                    <div style={{fontSize:10.5,fontWeight:700,color:last.drink.dark}}>{last.amount} ml tekrarla</div>
+                  </div>
+                </button>
+              ):<div style={{flex:1}}/>}
+              <button onClick={()=>setShowPicker(true)} style={{flexShrink:0,background:"linear-gradient(135deg,#42A5F5,#0D47A1)",border:"none",borderRadius:"50%",width:50,height:50,cursor:"pointer",color:"white",fontSize:22,display:"flex",alignItems:"center",justifyContent:"center",boxShadow:"0 4px 16px rgba(13,71,161,.4)",animation:"pls 2s ease-in-out infinite"}}>+</button>
+            </div>
+          </div>
+        )}
+
+        {/* ── BESLENME ── */}
+        {screen==="nutrition"&&(
+          <div className="sir" style={{flex:1,overflowY:"auto",padding:"16px 13px"}}>
+            <h2 style={{color:"#0D47A1",fontSize:17,marginBottom:14,fontWeight:800}}>🥗 Beslenme</h2>
+
+            {/* Dairesel ilerleme göstergeleri — Geçmiş sekmesindeki çubuk grafiklerden
+                bilinçli olarak farklı bir görsel dil; besin değerlerini "halka" olarak sunar */}
+            <div style={{background:"white",borderRadius:16,padding:16,marginBottom:11,boxShadow:"0 2px 10px rgba(13,71,161,.08)"}}>
+              <div style={{color:"#90A4AE",fontSize:9.5,fontWeight:700,marginBottom:14,letterSpacing:.5}}>BUGÜNKÜ BESİN DEĞERLERİ</div>
+              <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:6}}>
+                {[["💧","Su",total,goal,"ml","#2196F3"],["🔥","Kalori",totalCal,600,"kcal","#EF5350"],["☕","Kafein",totalCaff,400,"mg","#795548"],["💪","Protein",totalProt,50,"g","#7E57C2"]].map(([ic,l,val,mx,u,col])=>{
+                  const r=22, circ=2*Math.PI*r, pctv=Math.min((val/mx)*100,100), off=circ-(pctv/100)*circ;
+                  return(
+                    <div key={l} style={{display:"flex",flexDirection:"column",alignItems:"center",gap:5}}>
+                      <div style={{position:"relative",width:56,height:56}}>
+                        <svg width="56" height="56" viewBox="0 0 56 56" style={{transform:"rotate(-90deg)"}}>
+                          <circle cx="28" cy="28" r={r} fill="none" stroke="#F0F4FF" strokeWidth="5"/>
+                          <circle cx="28" cy="28" r={r} fill="none" stroke={col} strokeWidth="5" strokeLinecap="round"
+                            strokeDasharray={circ} strokeDashoffset={off} style={{transition:"stroke-dashoffset .8s cubic-bezier(.34,1.2,.64,1)"}}/>
+                        </svg>
+                        <div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:15}}>{ic}</div>
+                      </div>
+                      <div style={{fontSize:10,fontWeight:800,color:"#37474F"}}>{val}{u}</div>
+                      <div style={{fontSize:7.5,color:"#B0BEC5"}}>{l}</div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* İçecek kategorisi dağılımı — bugün içilen toplam hacmin kategorilere göre payı */}
+            {intake.length>0&&(()=>{
+              const catTotals={};
+              intake.forEach(e=>{ catTotals[e.drink.cat]=(catTotals[e.drink.cat]||0)+e.amount; });
+              const catTotal=Object.values(catTotals).reduce((s,v)=>s+v,0);
+              const catMeta={su:{l:"Su",c:"#2196F3"},cay:{l:"Çay",c:"#E53935"},bitki:{l:"Bitki Çayı",c:"#4CAF50"},kahve:{l:"Kahve",c:"#6D4C41"},gazoz:{l:"Gazlı İçecek",c:"#5D4037"},diger:{l:"Diğer",c:"#7E57C2"}};
+              return(
+                <div style={{background:"white",borderRadius:16,padding:14,marginBottom:11,boxShadow:"0 2px 10px rgba(13,71,161,.08)"}}>
+                  <div style={{color:"#90A4AE",fontSize:9.5,fontWeight:700,marginBottom:10,letterSpacing:.5}}>İÇECEK KATEGORİSİ DAĞILIMI</div>
+                  <div style={{display:"flex",height:10,borderRadius:5,overflow:"hidden",marginBottom:9}}>
+                    {Object.entries(catTotals).map(([cat,v])=>(
+                      <div key={cat} style={{width:`${(v/catTotal)*100}%`,background:catMeta[cat]?.c||"#B0BEC5",transition:"width .6s"}}/>
+                    ))}
+                  </div>
+                  <div style={{display:"flex",flexWrap:"wrap",gap:10}}>
+                    {Object.entries(catTotals).map(([cat,v])=>(
+                      <div key={cat} style={{display:"flex",alignItems:"center",gap:4}}>
+                        <div style={{width:8,height:8,borderRadius:2,background:catMeta[cat]?.c||"#B0BEC5"}}/>
+                        <span style={{fontSize:9.5,color:"#607D8B"}}>{catMeta[cat]?.l||cat} · {Math.round((v/catTotal)*100)}%</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
+
+            <div style={{background:"white",borderRadius:16,padding:14,boxShadow:"0 2px 10px rgba(13,71,161,.08)"}}>
+              <div style={{color:"#90A4AE",fontSize:9.5,fontWeight:700,marginBottom:10,letterSpacing:.5}}>KAYITLAR</div>
+              {intake.length===0?<div style={{color:"#90CAF9",textAlign:"center",padding:16,fontSize:12}}>Henüz kayıt yok</div>
+                :intake.map(e=>(
+                  <div key={e.id} style={{display:"flex",alignItems:"center",gap:8,padding:"7px 0",borderBottom:"1px solid #F5F7FF"}}>
+                    <DSvg sk={e.drink.sk} size={28}/>
+                    <div style={{flex:1,minWidth:0}}>
+                      <div style={{fontWeight:700,color:"#263238",fontSize:12,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{e.drink.name}</div>
+                      <div style={{fontSize:9.5,color:"#90A4AE"}}>{e.amount}ml · {Math.round((e.amount/100)*e.drink.cal)}kcal · {Math.round((e.amount/100)*e.drink.caff)}mg kaf</div>
+                    </div>
+                    <div style={{fontSize:10,fontWeight:700,color:"#1565C0",background:"#E3F2FD",borderRadius:8,padding:"2px 7px",flexShrink:0}}>+{e.waterMl}ml</div>
+                  </div>
+                ))
+              }
+            </div>
+          </div>
+        )}
+
+        {/* ── GEÇMİŞ & ROZETLER ── */}
+        {screen==="history"&&(
+          <div className="sir" style={{flex:1,overflowY:"auto",padding:"16px 13px"}}>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14}}>
+              <h2 style={{color:"#0D47A1",fontSize:17,fontWeight:800}}>📊 Geçmiş & Rozetler</h2>
+              {/* İstatistik / Arkadaşlar sekme toggle */}
+              <div style={{display:"flex",background:"#EEF2FF",borderRadius:10,padding:2}}>
+                {[["stats","📊"],["friends","👥"]].map(([v,ic])=>(
+                  <button key={v} onClick={()=>setRoomTab(v==="stats"?"leaderboard":"badges_friends")} style={{
+                    padding:"4px 10px",borderRadius:8,border:"none",cursor:"pointer",
+                    fontSize:11,fontWeight:700,
+                    background:(v==="stats"?roomTab!=="badges_friends":roomTab==="badges_friends")?"#1565C0":"transparent",
+                    color:(v==="stats"?roomTab!=="badges_friends":roomTab==="badges_friends")?"white":"#90A4AE",
+                    transition:"all .18s",
+                  }}>{ic}</button>
+                ))}
+              </div>
+            </div>
+
+            {roomTab==="badges_friends"?(
+              /* ── Arkadaşlar sekmesi ── */
+              <div>
+                {/* Oda kur / katıl */}
+                <div style={{background:"white",borderRadius:16,padding:14,marginBottom:11,boxShadow:"0 2px 10px rgba(13,71,161,.08)"}}>
+                  <div style={{fontSize:11,fontWeight:800,color:"#1565C0",marginBottom:8}}>👥 Arkadaş Odası</div>
+                  {roomCode?(
+                    <div style={{textAlign:"center"}}>
+                      <div style={{fontSize:10,color:"#90A4AE",marginBottom:4}}>Aktif oda kodu</div>
+                      <div style={{fontSize:26,fontWeight:900,color:"#0D47A1",letterSpacing:4,marginBottom:6}}>{roomCode}</div>
+                      <div style={{fontSize:9.5,color:"#90A4AE",marginBottom:10}}>Bu kodu arkadaşlarınla paylaş, birlikte yarışın!</div>
+                      <button onClick={async()=>{
+                        setRoomCode(""); setRoomMembers([]);
+                        storageSet("roomCode","");
+                      }} style={{fontSize:10,color:"#EF5350",background:"none",border:"1px solid #EF5350",borderRadius:8,padding:"4px 10px",cursor:"pointer"}}>Odadan Çık</button>
+                    </div>
+                  ):(
+                    <div style={{display:"flex",flexDirection:"column",gap:8}}>
+                      <div style={{display:"flex",gap:7}}>
+                        <input
+                          value={roomInput}
+                          onChange={e=>setRoomInput(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g,"").slice(0,6))}
+                          placeholder="Oda kodu (6 harf)"
+                          style={{flex:1,padding:"9px 12px",borderRadius:10,border:"1.5px solid #E3F2FD",outline:"none",fontFamily:"inherit",fontSize:13,fontWeight:700,letterSpacing:2,color:"#0D47A1",textAlign:"center"}}/>
+                        <button onClick={async()=>{
+                          if(roomInput.length>=4){
+                            setRoomCode(roomInput);
+                            await storageSet("roomCode",roomInput);
+                            setRoomInput("");
+                          }
+                        }} style={{padding:"9px 12px",borderRadius:10,background:"#1565C0",border:"none",color:"white",fontWeight:700,fontSize:11,cursor:"pointer"}}>Katıl</button>
+                      </div>
+                      <button onClick={async()=>{
+                        const code=makeRoomCode();
+                        setRoomCode(code);
+                        await storageSet("roomCode",code);
+                      }} style={{padding:"9px",borderRadius:10,background:"#E3F2FD",border:"none",color:"#1565C0",fontWeight:700,fontSize:11,cursor:"pointer"}}>✨ Yeni Oda Oluştur</button>
+                    </div>
+                  )}
+                </div>
+
+                {/* Liderlik tablosu */}
+                {roomCode&&(
+                  <div style={{background:"white",borderRadius:16,padding:14,boxShadow:"0 2px 10px rgba(13,71,161,.08)"}}>
+                    <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
+                      <div style={{fontSize:11,fontWeight:800,color:"#37474F"}}>🏆 Bugünün Sıralaması</div>
+                      <div style={{fontSize:9,color:"#90A4AE"}}>her 30sn güncellenir</div>
+                    </div>
+
+                    {roomMembers.length===0?(
+                      <div style={{textAlign:"center",padding:"16px 0",color:"#B0BEC5",fontSize:12}}>
+                        <div style={{fontSize:24,marginBottom:6}}>👋</div>
+                        Henüz kimse yok — oda kodunu paylaşın!
+                      </div>
+                    ):(<>
+                      {/* Bugünün lideri — en üstte, özel kutlama şeridi */}
+                      {roomMembers.length>=1&&(()=>{
+                        const leader=roomMembers[0];
+                        const leaderIsMe=leader.name===(profile?.name||"Kullanıcı");
+                        return(
+                          <div style={{
+                            display:"flex",alignItems:"center",gap:10,
+                            background:"linear-gradient(135deg,#FFD700,#FFA000)",
+                            borderRadius:13,padding:"11px 13px",marginBottom:10,
+                            boxShadow:"0 4px 14px rgba(255,160,0,.35)",
+                          }}>
+                            <div style={{fontSize:26}}>👑</div>
+                            <div style={{flex:1,minWidth:0}}>
+                              <div style={{fontSize:9.5,color:"rgba(255,255,255,.85)",fontWeight:700}}>BUGÜNÜN LİDERİ</div>
+                              <div style={{fontSize:14,fontWeight:900,color:"white",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+                                {leaderIsMe?"Sen! 🎉":leader.name}
+                              </div>
+                            </div>
+                            <div style={{textAlign:"right",flexShrink:0}}>
+                              <div style={{fontSize:15,fontWeight:900,color:"white"}}>{Math.round(Math.min((leader.total/leader.goal)*100,100))}%</div>
+                              <div style={{fontSize:9,color:"rgba(255,255,255,.8)"}}>{(leader.total/1000).toFixed(1)}L</div>
+                            </div>
+                          </div>
+                        );
+                      })()}
+
+                      {roomMembers.map((m,i)=>{
+                        const pct=Math.min((m.total/m.goal)*100,100);
+                        const isMe=m.name===(profile?.name||"Kullanıcı");
+                        const isFirst=i===0;
+                        const medal=["🥇","🥈","🥉"][i]||`${i+1}.`;
+                        return(
+                          <div key={m.name} style={{
+                            display:"flex",alignItems:"center",gap:9,padding:"9px 10px",marginBottom:7,
+                            borderRadius:12,
+                            background:isFirst?"#FFF8E1":isMe?"#E3F2FD":"#F8FAFF",
+                            border:`1.5px solid ${isFirst?"#FFD700":isMe?"#1565C0":"#EEF2FF"}`,
+                            boxShadow:isFirst?"0 2px 8px rgba(255,193,7,.3)":"none",
+                          }}>
+                            <div style={{fontSize:isFirst?22:18,flexShrink:0,width:26,textAlign:"center"}}>{medal}</div>
+                            <div style={{flex:1,minWidth:0}}>
+                              <div style={{display:"flex",alignItems:"center",gap:5,marginBottom:4}}>
+                                <span style={{fontWeight:700,color:"#263238",fontSize:12,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{m.name}</span>
+                                {isMe&&<span style={{fontSize:8,background:"#1565C0",color:"white",borderRadius:5,padding:"1px 5px",flexShrink:0}}>SEN</span>}
+                                {isFirst&&<span style={{fontSize:8,background:"#FFA000",color:"white",borderRadius:5,padding:"1px 5px",flexShrink:0,fontWeight:800}}>LİDER</span>}
+                                {m.streak>=3&&<span style={{fontSize:10}}>🔥{m.streak}</span>}
+                              </div>
+                              <div style={{height:5,background:"#E8EEFF",borderRadius:3,overflow:"hidden"}}>
+                                <div style={{height:"100%",width:`${pct}%`,background:pct>=100?"linear-gradient(to right,#66BB6A,#2E7D32)":"linear-gradient(to right,#42A5F5,#1565C0)",borderRadius:3,transition:"width .6s"}}/>
+                              </div>
+                            </div>
+                            <div style={{textAlign:"right",flexShrink:0}}>
+                              <div style={{fontSize:11,fontWeight:800,color:pct>=100?"#2E7D32":"#1565C0"}}>{Math.round(pct)}%</div>
+                              <div style={{fontSize:9,color:"#90A4AE"}}>{(m.total/1000).toFixed(1)}L</div>
+                              <div style={{fontSize:9,color:"#B0BEC5"}}>{m.earnedCount}🏅</div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </>)}
+                  </div>
+                )}
+              </div>
+            ):(
+              <>
+              {streak>=1&&(
+              <div style={{
+                display:"flex",alignItems:"center",gap:10,
+                background: streak>=7 ? "linear-gradient(135deg,#FF6F00,#FFB300)" : "linear-gradient(135deg,#FFA726,#FFCC80)",
+                borderRadius:14,padding:"12px 14px",marginBottom:11,
+                boxShadow:"0 4px 14px rgba(255,111,0,.25)",
+              }}>
+                <div style={{fontSize:28}}>🔥</div>
+                <div style={{flex:1}}>
+                  <div style={{fontSize:15,fontWeight:900,color:"white"}}>{streak} Günlük Seri</div>
+                  <div style={{fontSize:10,color:"rgba(255,255,255,.85)"}}>
+                    {streak>=7?"Efsanevi bir tutarlılık — devam et!":streak>=3?"Harika gidiyorsun, böyle sürdür!":"Güzel başlangıç, devam et!"}
+                  </div>
+                  <div style={{fontSize:8.5,color:"rgba(255,255,255,.7)",marginTop:2}}>
+                    Bugün dahil, üst üste hedefi tamamladığın gün sayısı
+                  </div>
+                </div>
+              </div>
+              )}
+
+            {/* Trend karşılaştırması — bu hafta vs geçen hafta (WaterMinder/HydroCoach tarzı) */}
+            {trendDiff!==null&&(
+              <div style={{
+                display:"flex",alignItems:"center",gap:8,
+                background: trendDiff>=0 ? "#E8F5E9" : "#FFF3E0",
+                borderRadius:12,padding:"9px 12px",marginBottom:11,
+              }}>
+                <span style={{fontSize:16}}>{trendDiff>=0?"📈":"📉"}</span>
+                <div style={{flex:1}}>
+                  <span style={{fontSize:11.5,fontWeight:800,color:trendDiff>=0?"#2E7D32":"#E65100"}}>
+                    {trendDiff>=0?`+${trendDiff}%`:`${trendDiff}%`}
+                  </span>
+                  <span style={{fontSize:10.5,color:"#607D8B"}}> geçen haftaya göre</span>
+                </div>
+                <div style={{fontSize:9,color:"#90A4AE"}}>{(weekAvg/1000).toFixed(1)}L vs {(prevWeekAvg/1000).toFixed(1)}L</div>
+              </div>
+            )}
+
+            {/* Haftalık özet istatistikleri — ortalama / en iyi gün / hedef tamamlanan gün sayısı */}
+            <div style={{display:"flex",gap:7,marginBottom:11}}>
+              {[
+                ["Ortalama",`${(weekAvg/1000).toFixed(1)}L`,"#1565C0","📈"],
+                ["En İyi Gün",`${(weekBest/1000).toFixed(1)}L`,"#2E7D32","🏅"],
+                ["Hedef Günü",`${weekGoalDays}/7`,"#E65100","🎯"],
+              ].map(([l,v,tc,ic])=>(
+                <div key={l} style={{flex:1,background:"white",borderRadius:13,padding:"10px 6px",textAlign:"center",boxShadow:"0 2px 8px rgba(13,71,161,.08)"}}>
+                  <div style={{fontSize:14}}>{ic}</div>
+                  <div style={{fontSize:13,fontWeight:800,color:tc,marginTop:2}}>{v}</div>
+                  <div style={{fontSize:8.5,color:"#90A4AE",marginTop:1}}>{l}</div>
+                </div>
+              ))}
+            </div>
+
+            {/* Saatlik Dağılım — bugün ne zaman içildiğini gösterir.
+                Profesyonel hidrasyon uygulamaları (WaterMinder, Hydro Coach) bunu
+                "peak hydration periods" görmek için kullanır; geçmiş/trend verisi
+                olduğundan Beslenme yerine burada, Geçmiş sekmesinde yer alır. */}
+            {intake.length>0&&(()=>{
+              const buckets = Array.from({length:18},(_,i)=>i+6); // 06..23
+              const hourTotals = buckets.map(h=>
+                intake.filter(e=>parseInt(e.time)===h).reduce((s,e)=>s+e.waterMl,0)
+              );
+              const maxBucket = Math.max(...hourTotals,1);
+              const curHour = now.getHours();
+              const peakIdx = hourTotals.indexOf(maxBucket);
+              const peakHour = buckets[peakIdx];
+              const activeHours = hourTotals.filter(v=>v>0).length;
+
+              return(
+                <div style={{background:"white",borderRadius:14,padding:"12px 12px 10px",marginBottom:11,boxShadow:"0 2px 8px rgba(13,71,161,.08)"}}>
+                  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
+                    <div style={{display:"flex",alignItems:"center",gap:5}}>
+                      <span style={{fontSize:12}}>⏱️</span>
+                      <span style={{fontSize:10,fontWeight:800,color:"#37474F",letterSpacing:.3}}>Bugün Saatlik Dağılım</span>
+                    </div>
+                    {maxBucket>0&&(
+                      <div style={{fontSize:8.5,fontWeight:700,color:"#1565C0",background:"#E3F2FD",borderRadius:10,padding:"2px 8px"}}>
+                        En çok {peakHour}:00'da içtin
+                      </div>
+                    )}
+                  </div>
+
+                  <div style={{display:"flex",alignItems:"flex-end",gap:3,height:48,padding:"0 1px"}}>
+                    {buckets.map((h,i)=>{
+                      const val=hourTotals[i];
+                      const hpct=val>0?Math.max((val/maxBucket)*100,14):0;
+                      const isNow=h===curHour;
+                      const isPeak=h===peakHour&&val>0;
+                      return(
+                        <div key={h} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",height:"100%",justifyContent:"flex-end",gap:3,position:"relative"}}>
+                          {isNow&&(
+                            <div style={{position:"absolute",top:-3,width:5,height:5,borderRadius:"50%",background:"#0D47A1"}}/>
+                          )}
+                          <div style={{
+                            width:"100%",maxWidth:14,borderRadius:4,
+                            height:`${Math.max(hpct,val>0?14:3)}%`,
+                            background: val===0 ? "#EEF4FB"
+                              : isPeak ? "linear-gradient(180deg,#1976D2,#0D47A1)"
+                              : isNow ? "linear-gradient(180deg,#64B5F6,#1565C0)"
+                              : "linear-gradient(180deg,#BBDEFB,#64B5F6)",
+                            transition:"height .6s cubic-bezier(.34,1.2,.64,1)",
+                            minHeight:val>0?5:3,
+                            boxShadow:isPeak?"0 2px 6px rgba(13,71,161,.35)":"none",
+                          }}/>
+                          <div style={{fontSize:6.5,color:isNow?"#0D47A1":"#C5CFDA",fontWeight:isNow?800:500,height:8}}>
+                            {(h%3===0)?h:""}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {activeHours>0&&(
+                    <div style={{fontSize:8.5,color:"#90A4AE",marginTop:4,textAlign:"center"}}>
+                      Bugün {activeHours} farklı saat diliminde su içtin
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+
+            {/* Hafta / Ay grafik kartı — toggle ile geçiş */}
+            <div style={{background:"white",borderRadius:16,padding:14,marginBottom:11,boxShadow:"0 2px 10px rgba(13,71,161,.08)"}}>
+              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
+                <div style={{color:"#90A4AE",fontSize:9.5,fontWeight:700,letterSpacing:.5}}>
+                  {chartView==="week"?"BU HAFTA":"SON 30 GÜN"}
+                </div>
+                <div style={{display:"flex",background:"#F0F4FF",borderRadius:10,padding:2}}>
+                  {[["week","Hafta"],["month","Ay"]].map(([v,l])=>(
+                    <button key={v} onClick={()=>setChartView(v)} style={{
+                      padding:"4px 11px",borderRadius:8,border:"none",cursor:"pointer",
+                      fontSize:9.5,fontWeight:700,
+                      background:chartView===v?"#1565C0":"transparent",
+                      color:chartView===v?"white":"#90A4AE",
+                      transition:"all .18s",
+                    }}>{l}</button>
+                  ))}
+                </div>
+              </div>
+
+              {chartView==="week"?(
+                <>
+                  <div style={{display:"flex",flexDirection:"column",gap:7}}>
+                    {weekData.map(([d,v,isToday],i)=>{
+                      const hasData = v!==null && v!==undefined;
+                      const pctBar = hasData ? Math.min((v/maxWeek)*100,100) : 0;
+                      const reached = hasData && v>=goal;
+                      return(
+                        <div key={`${d}-${i}`} style={{display:"flex",alignItems:"center",gap:8}}>
+                          <div style={{fontSize:10,fontWeight:isToday?800:400,color:isToday?"#0D47A1":"#90A4AE",width:24,flexShrink:0,textAlign:"right"}}>{d}</div>
+                          <div style={{flex:1,height:14,background:"#EEF4FB",borderRadius:7,overflow:"hidden",position:"relative"}}>
+                            {hasData&&(
+                              <div style={{
+                                position:"absolute",left:0,top:0,height:"100%",
+                                width:`${pctBar}%`,
+                                background:reached?"linear-gradient(to right,#66BB6A,#2E7D32)":isToday?"linear-gradient(to right,#42A5F5,#0D47A1)":"linear-gradient(to right,#90CAF9,#42A5F5)",
+                                borderRadius:7,transition:"width .8s ease",
+                              }}/>
+                            )}
+                          </div>
+                          <div style={{fontSize:9.5,fontWeight:isToday?700:400,color:isToday?"#0D47A1":"#90A4AE",width:32,flexShrink:0}}>
+                            {hasData?`${(v/1000).toFixed(1)}L`:"—"}
+                          </div>
+                          {reached&&<div style={{fontSize:11}}>✅</div>}
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div style={{marginTop:10,display:"flex",gap:12,justifyContent:"center"}}>
+                    <div style={{display:"flex",alignItems:"center",gap:4}}><div style={{width:10,height:10,borderRadius:3,background:"linear-gradient(to right,#42A5F5,#0D47A1)"}}/><span style={{fontSize:9,color:"#90A4AE"}}>Bugün</span></div>
+                    <div style={{display:"flex",alignItems:"center",gap:4}}><div style={{width:10,height:10,borderRadius:3,background:"linear-gradient(to right,#66BB6A,#2E7D32)"}}/><span style={{fontSize:9,color:"#90A4AE"}}>Hedef tamamlandı</span></div>
+                  </div>
+                </>
+              ):(
+                <>
+                  {/* Aylık görünüm — son 30 gün, dikey mini çubuklar */}
+                  <div style={{display:"flex",alignItems:"flex-end",gap:2,height:64,marginBottom:6}}>
+                    {monthData.map((d,i)=>{
+                      const hasData=d.val!==null;
+                      const hpct=hasData?Math.max((d.val/monthMax)*100,6):0;
+                      const reached=hasData&&d.val>=goal;
+                      return(
+                        <div key={i} style={{flex:1,display:"flex",alignItems:"flex-end",height:"100%"}} title={hasData?`${d.day}: ${(d.val/1000).toFixed(1)}L`:`${d.day}: veri yok`}>
+                          <div style={{
+                            width:"100%",borderRadius:2,
+                            height:`${Math.max(hpct,hasData?6:2)}%`,
+                            background: !hasData ? "#EEF4FB"
+                              : reached ? "linear-gradient(180deg,#66BB6A,#2E7D32)"
+                              : d.isToday ? "linear-gradient(180deg,#64B5F6,#0D47A1)"
+                              : "linear-gradient(180deg,#BBDEFB,#64B5F6)",
+                            transition:"height .6s ease",
+                            minHeight:hasData?3:2,
+                          }}/>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div style={{display:"flex",justifyContent:"space-between",marginBottom:10}}>
+                    <span style={{fontSize:8,color:"#B0BEC5"}}>{monthData[0]?.day} gün önce</span>
+                    <span style={{fontSize:8,color:"#B0BEC5"}}>Bugün</span>
+                  </div>
+                  <div style={{display:"flex",gap:7}}>
+                    {[["Ortalama",`${(monthAvg/1000).toFixed(1)}L`,"#1565C0"],["Hedef Günü",`${monthGoalDays}/${monthValues.length}`,"#2E7D32"]].map(([l,v,tc])=>(
+                      <div key={l} style={{flex:1,background:"#F8FAFF",borderRadius:10,padding:"8px 6px",textAlign:"center"}}>
+                        <div style={{fontSize:13,fontWeight:800,color:tc}}>{v}</div>
+                        <div style={{fontSize:8,color:"#90A4AE",marginTop:1}}>{l}</div>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* Badges — tier'lara göre gruplu, kazanılanlar hareketli */}
+            <div style={{background:"white",borderRadius:16,padding:14,boxShadow:"0 2px 10px rgba(13,71,161,.08)"}}>
+              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:4}}>
+                <div style={{color:"#90A4AE",fontSize:9.5,fontWeight:700,letterSpacing:.5}}>ROZETLER</div>
+                <div style={{fontSize:11,fontWeight:800,color:"#1565C0"}}>{earned.length} / {BD.length}</div>
+              </div>
+              {/* Progress bar */}
+              <div style={{height:5,background:"#EEF4FB",borderRadius:3,overflow:"hidden",marginBottom:14}}>
+                <div style={{height:"100%",width:`${(earned.length/BD.length)*100}%`,background:"linear-gradient(to right,#42A5F5,#1565C0)",borderRadius:3,transition:"width .6s"}}/>
+              </div>
+
+              {["bronze","silver","gold","legendary"].map(tier=>{
+                const tierBadges = BD.filter(b=>b.tier===tier);
+                const tierEarned = tierBadges.filter(b=>earned.includes(b.id)).length;
+                const info = TIER_INFO[tier];
+                return(
+                  <div key={tier} style={{marginBottom:14}}>
+                    <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:8}}>
+                      <div style={{width:8,height:8,borderRadius:"50%",background:info.ring}}/>
+                      <span style={{fontSize:10,fontWeight:800,color:"#37474F",letterSpacing:.3}}>{info.label}</span>
+                      <span style={{fontSize:9,color:"#B0BEC5"}}>{tierEarned}/{tierBadges.length}</span>
+                    </div>
+                    <div style={{display:"flex",flexWrap:"wrap",gap:8,justifyContent:"flex-start"}}>
+                      {tierBadges.map(b=>{
+                        const e=earned.includes(b.id);
+                        // Tier'a göre farklı sürekli animasyon — her tier kendi "kişiliğine" sahip
+                        const motionAnim = !e ? "none"
+                          : tier==="bronze"   ? "bFloat 2.6s ease-in-out infinite"
+                          : tier==="silver"   ? "bGl 2.4s ease-in-out infinite"
+                          : tier==="gold"     ? "bSpin 3.2s ease-in-out infinite, bGl 2s ease-in-out infinite"
+                          : "bGl 1.8s ease-in-out infinite, bRainbow 4s linear infinite";
+                        return(
+                          <div key={b.id} title={b.desc} style={{display:"flex",flexDirection:"column",alignItems:"center",gap:3,width:54,cursor:"pointer",position:"relative"}}>
+                            {/* Sparkle overlay for earned gold/legendary */}
+                            {e&&(tier==="gold"||tier==="legendary")&&(
+                              <span style={{position:"absolute",top:-2,right:6,fontSize:11,animation:"bSparkle 1.6s ease-in-out infinite",pointerEvents:"none"}}>✨</span>
+                            )}
+                            <div style={{
+                              width:50,height:50,borderRadius:16,position:"relative",overflow:"hidden",
+                              background:e?`linear-gradient(135deg,${b.color}25,${b.color}50)`:"#F5F5F5",
+                              border:e?`2px solid ${info.ring}`:"2px solid #E8E8E8",
+                              display:"flex",alignItems:"center",justifyContent:"center",
+                              fontSize:22,
+                              filter:e?"none":"grayscale(1) opacity(.3)",
+                              ["--bc"]:b.color,
+                              animation:motionAnim,
+                              transition:"all .5s",
+                              boxShadow:e?`0 4px 12px ${info.glow}`:"none",
+                            }}>
+                              <span style={{animation:e?"bSp .5s ease-out":"none",display:"inline-block"}}>{b.icon}</span>
+                              {/* Shine sweep for earned badges */}
+                              {e&&(
+                                <div style={{position:"absolute",top:0,left:0,width:"40%",height:"100%",background:"linear-gradient(120deg,transparent,rgba(255,255,255,.65),transparent)",animation:"bShine 3s ease-in-out infinite",animationDelay:`${Math.random()*2}s`}}/>
+                              )}
+                            </div>
+                            <div style={{fontSize:7.5,fontWeight:700,color:e?"#263238":"#B0BEC5",textAlign:"center",lineHeight:1.25}}>{b.name}</div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            </>
+            )}
+
+          </div>
+        )}
+
+        {/* ── PROFİL ── */}
+        {screen==="profile"&&(
+          <div className="sir" style={{flex:1,overflowY:"auto",padding:"16px 13px"}}>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14}}>
+              <h2 style={{color:"#0D47A1",fontSize:17,fontWeight:800}}>👤 Profil</h2>
+              <button onClick={()=>setEditProfile(true)} style={{padding:"6px 14px",borderRadius:10,background:"#1565C0",border:"none",color:"white",fontSize:11,fontWeight:700,cursor:"pointer"}}>✏️ Düzenle</button>
+            </div>
+
+            {/* Profil özet kartı — Bugün ekranındaki gradyan header'dan bilinçli olarak farklı:
+                yatay/kompakt "kimlik kartı" formatı, ayarlar sayfası hissi verir */}
+            <div style={{background:"white",border:"1.5px solid #E3F2FD",borderRadius:16,padding:"14px",marginBottom:12,display:"flex",alignItems:"center",gap:12}}>
+              <div style={{
+                width:54,height:54,borderRadius:16,flexShrink:0,
+                background:"linear-gradient(135deg,#0D47A1,#42A5F5)",
+                display:"flex",alignItems:"center",justifyContent:"center",fontSize:26,
+              }}>{profile.gender==="male"?"👨":"👩"}</div>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{fontSize:16,fontWeight:900,color:"#1A237E"}}>{profile.name||"Kullanıcı"}</div>
+                <div style={{fontSize:10.5,color:"#90A4AE",marginTop:1}}>{profile.age} yaş · {profile.weight.toFixed(1)} kg · {profile.height} cm</div>
+                <div style={{display:"flex",alignItems:"baseline",gap:4,marginTop:4}}>
+                  <span style={{fontSize:10,color:"#90A4AE"}}>Günlük hedef</span>
+                  <span style={{fontSize:15,fontWeight:900,color:"#1565C0"}}>{goal} ml</span>
+                </div>
+              </div>
+              <div style={{textAlign:"right",flexShrink:0}}>
+                {weather.loading?(
+                  <span style={{fontSize:9,color:"#90A4AE"}}>📍…</span>
+                ):weather.temp!==null?(
+                  <>
+                    <div style={{fontSize:16}}>{weather.icon}</div>
+                    <div style={{fontSize:10,fontWeight:700,color:"#37474F"}}>{weather.temp}°C</div>
+                  </>
+                ):(
+                  <button onClick={fetchWeather} style={{background:"#E3F2FD",border:"none",borderRadius:8,padding:"4px 7px",cursor:"pointer",color:"#1565C0",fontSize:8.5,fontWeight:700}}>🔄</button>
+                )}
+              </div>
+            </div>
+
+            {/* Info rows */}
+            {[["⚖️","Ağırlık",`${profile.weight.toFixed(1)} kg`],["📏","Boy",`${profile.height} cm`],["🎂","Yaş",`${profile.age} yıl`],["👤","Cinsiyet",profile.gender==="male"?"Erkek":"Kadın"],["🏃","Aktivite",{sedentary:"Hareketsiz",light:"Hafif Aktif",moderate:"Orta Aktif",active:"Çok Aktif",veryActive:"Ekstra Aktif"}[profile.activity]],["🌡️","Sıcaklık",weather.temp!==null?`${weather.temp}°C — ${weather.city}`:"Henüz alınamadı"]].map(([ic,l,v],i)=>(
+              <div key={l} className="siu" style={{background:"white",borderRadius:12,padding:"10px 12px",display:"flex",alignItems:"center",gap:10,marginBottom:6,boxShadow:"0 2px 7px rgba(13,71,161,.06)",animationDelay:`${i*.04}s`}}>
+                <span style={{fontSize:17}}>{ic}</span>
+                <div style={{flex:1}}><div style={{fontSize:9.5,color:"#90A4AE"}}>{l}</div><div style={{fontWeight:700,color:"#263238",fontSize:13}}>{v}</div></div>
+              </div>
+            ))}
+
+            {/* Notifications */}
+            <div style={{background:"white",borderRadius:16,padding:14,marginTop:4,boxShadow:"0 2px 10px rgba(13,71,161,.08)"}}>
+              <div style={{fontSize:13,fontWeight:800,color:"#1565C0",marginBottom:4}}>🔔 Bildirimler</div>
+              {/* Permission status */}
+              <div style={{fontSize:10,color:notif.permission==="granted"?"#4CAF50":notif.permission==="denied"?"#EF5350":"#90A4AE",marginBottom:10,padding:"5px 8px",background:notif.permission==="granted"?"#E8F5E9":notif.permission==="denied"?"#FFEBEE":"#F5F5F5",borderRadius:8}}>
+                {notif.permission==="granted"?"✅ Bildirimler etkinleştirildi":notif.permission==="denied"?"❌ Bildirimler engellendi (tarayıcı ayarlarından açabilirsiniz)":notif.permission==="unsupported"?"⚠️ Bu tarayıcı bildirimleri desteklemiyor":"ℹ️ Bildirim izni henüz verilmedi"}
+              </div>
+              {[["Hatırlatmalar","enabled"],["Ses","sound"],["Titreşim","vibrate"]].map(([l,k])=>(
+                <div key={k} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"9px 0",borderBottom:"1px solid #F5F7FF"}}>
+                  <div style={{fontSize:13,color:"#37474F"}}>{l}</div>
+                  <div onClick={async()=>{
+                    if(k==="enabled"&&!notif.enabled){
+                      const perm=await checkNotifPermission();
+                      setNotif(p=>({...p,enabled:perm==="granted",permission:perm}));
+                    } else {
+                      setNotif(p=>({...p,[k]:!p[k]}));
+                    }
+                  }} style={{width:44,height:26,borderRadius:13,background:notif[k]?"#1565C0":"#CFD8DC",cursor:"pointer",position:"relative",transition:"background .2s",flexShrink:0}}>
+                    <div style={{position:"absolute",top:3,left:notif[k]?22:3,width:20,height:20,borderRadius:"50%",background:"white",boxShadow:"0 1px 4px rgba(0,0,0,.2)",transition:"left .2s"}}/>
+                  </div>
+                </div>
+              ))}
+              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"9px 0",borderBottom:"1px solid #F5F7FF"}}>
+                <div style={{fontSize:13,color:"#37474F"}}>Aralık</div>
+                <div style={{display:"flex",alignItems:"center",gap:8}}>
+                  <button onClick={()=>setNotif(p=>({...p,interval:Math.max(1,p.interval-1)}))} style={{width:30,height:30,borderRadius:9,border:"1.5px solid #E3F2FD",background:"#F0F4FF",cursor:"pointer",fontWeight:700,color:"#1565C0",fontSize:16,display:"flex",alignItems:"center",justifyContent:"center"}}>−</button>
+                  <span style={{fontSize:13,fontWeight:700,color:"#1565C0",minWidth:52,textAlign:"center"}}>{notif.interval} saat</span>
+                  <button onClick={()=>setNotif(p=>({...p,interval:Math.min(12,p.interval+1)}))} style={{width:30,height:30,borderRadius:9,border:"1.5px solid #E3F2FD",background:"#F0F4FF",cursor:"pointer",fontWeight:700,color:"#1565C0",fontSize:16,display:"flex",alignItems:"center",justifyContent:"center"}}>+</button>
+                </div>
+              </div>
+
+              {/* Sessiz saatler — uyku penceresinde hatırlatma gelmez (Waterllama tarzı) */}
+              <div style={{padding:"9px 0"}}>
+                <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
+                  <div style={{fontSize:13,color:"#37474F"}}>🌙 Sessiz Saatler</div>
+                  <div style={{fontSize:9.5,color:"#90A4AE"}}>Uyku sırasında hatırlatma yok</div>
+                </div>
+                <div style={{display:"flex",alignItems:"center",gap:8}}>
+                  <select value={notif.quietStart} onChange={e=>setNotif(p=>({...p,quietStart:Number(e.target.value)}))}
+                    style={{flex:1,padding:"8px 6px",borderRadius:9,border:"1.5px solid #E3F2FD",background:"#F8FAFF",color:"#1565C0",fontWeight:700,fontSize:12,fontFamily:"inherit"}}>
+                    {Array.from({length:24},(_,h)=><option key={h} value={h}>{String(h).padStart(2,"0")}:00</option>)}
+                  </select>
+                  <span style={{fontSize:11,color:"#90A4AE"}}>—</span>
+                  <select value={notif.quietEnd} onChange={e=>setNotif(p=>({...p,quietEnd:Number(e.target.value)}))}
+                    style={{flex:1,padding:"8px 6px",borderRadius:9,border:"1.5px solid #E3F2FD",background:"#F8FAFF",color:"#1565C0",fontWeight:700,fontSize:12,fontFamily:"inherit"}}>
+                    {Array.from({length:24},(_,h)=><option key={h} value={h}>{String(h).padStart(2,"0")}:00</option>)}
+                  </select>
+                </div>
+              </div>
+
+              <button onClick={()=>{
+                fireReminder({...notif,enabled:true}, total, remaining, true);
+                setTestToast(true); setTimeout(()=>setTestToast(false),2200);
+              }} disabled={notif.permission!=="granted"} style={{
+                width:"100%",marginTop:10,padding:"10px",borderRadius:11,border:"none",cursor:notif.permission==="granted"?"pointer":"not-allowed",
+                background:notif.permission==="granted"?"#1565C0":"#EEF2FF",
+                color:notif.permission==="granted"?"white":"#B0BEC5",
+                fontSize:12,fontWeight:700,
+              }}>🔔 Test Bildirimi Gönder</button>
+              {testToast&&(
+                <div style={{marginTop:7,fontSize:10.5,color:"#2E7D32",background:"#E8F5E9",borderRadius:9,padding:"6px 9px",textAlign:"center"}}>
+                  ✅ Gönderildi — ses{notif.sound?" ve titreşim":""} duyuldu mu kontrol edin
+                </div>
+              )}
+            </div>
+
+            {/* Calculation */}
+            <div style={{background:"#FFF8E1",borderRadius:13,padding:12,marginTop:8}}>
+              <div style={{fontSize:11,fontWeight:800,color:"#E65100",marginBottom:6}}>📐 Hesaplama</div>
+              <div style={{fontSize:10,color:"#546E7A",lineHeight:1.9}}>
+                BMR (Mifflin-St Jeor) → TDEE × 1ml/kcal<br/>
+                + İklim {Math.max(0,Math.round(((weather.temp??22)-20)/5)*200)}ml + BSA (DuBois) · ×0.80<br/>
+                <b style={{color:"#0D47A1",fontSize:12}}>= {goal} ml/gün</b><br/>
+                <span style={{color:"#aaa",fontSize:9}}>IOM 2005 · EFSA 2010 · NASEM 2020 · WHO · Mayo Clinic</span>
+              </div>
+            </div>
+
+            {/* App info */}
+            <div style={{background:"white",borderRadius:13,padding:12,marginTop:8,boxShadow:"0 2px 7px rgba(13,71,161,.06)"}}>
+              <div style={{fontSize:10,fontWeight:700,color:"#90A4AE",marginBottom:8,letterSpacing:.4}}>UYGULAMA</div>
+              {[["📱","Sürüm","1.0.0"],["🛡️","Gizlilik","Verileriniz bu cihazda saklanır, paylaşılmaz"],["💾","Kayıtlar","Otomatik olarak kalıcı saklanır"],["⭐","Değerlendir","App Store / Play Store"]].map(([ic,l,v])=>(
+                <div key={l} style={{display:"flex",alignItems:"center",gap:8,padding:"7px 0",borderBottom:"1px solid #F5F7FF"}}>
+                  <span style={{fontSize:15}}>{ic}</span>
+                  <div style={{flex:1}}><div style={{fontSize:9.5,color:"#90A4AE"}}>{l}</div><div style={{fontSize:11.5,fontWeight:600,color:"#37474F"}}>{v}</div></div>
+                </div>
+              ))}
+            </div>
+
+            <button onClick={async()=>{
+              await storageSet("profile",null);
+              await storageSet("intake",[]);
+              await storageSet("earned",[]);
+              setProfile(null); setIntake([]); setEarned([]);
+            }} style={{width:"100%",marginTop:12,padding:12,borderRadius:12,border:"2px solid #EF5350",background:"white",color:"#EF5350",fontSize:13,fontWeight:700,cursor:"pointer"}}>🔄 Profili Sıfırla</button>
+            <div style={{height:16}}/>
+          </div>
+        )}
+
+        {/* Bottom nav */}
+        <div style={{display:"flex",background:"white",borderTop:"1px solid #E8F0FE",flexShrink:0,boxShadow:"0 -3px 12px rgba(13,71,161,.06)"}}>
+          {TABS.map(t=>(
+            <button key={t.id} onClick={()=>setScreen(t.id)} style={{flex:1,background:"none",border:"none",cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",gap:1.5,padding:"5px 0 4px",transition:"all .2s"}}>
+              <span style={{fontSize:18,transform:screen===t.id?"scale(1.15)":"scale(1)",transition:"transform .25s cubic-bezier(.34,1.4,.64,1)",display:"inline-block"}}>{t.icon}</span>
+              <span style={{fontSize:9,fontWeight:screen===t.id?700:400,color:screen===t.id?"#0D47A1":"#90A4AE"}}>{t.label}</span>
+              <div style={{width:screen===t.id?18:0,height:2.5,background:"#0D47A1",borderRadius:2,transition:"width .25s cubic-bezier(.34,1.4,.64,1)"}}/>
+            </button>
+          ))}
+        </div>
+
+        {/* Drink picker */}
+        <DrinkPicker
+          open={showPicker&&!selDrink}
+          onClose={()=>setShowPicker(false)}
+          lastDrink={last?.drink}
+          onSelect={d=>setSelDrink(d)}
+          customDrinks={customDrinks}
+          onAddCustom={newDrink=>setCustomDrinks(p=>[...p,newDrink])}
+        />
+        {selDrink&&<AmountScreen drink={selDrink} onAdd={addDrink} onBack={()=>setSelDrink(null)} onClose={()=>{setSelDrink(null);setShowPicker(false);}}/>}
+
+        {/* Profile edit sheet */}
+        {editProfile&&(
+          <div className="fin" style={{position:"absolute",inset:0,zIndex:500,background:"linear-gradient(160deg,#0D47A1,#1976D2 55%,#29B6F6)",display:"flex",flexDirection:"column",overflow:"hidden"}}>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"14px 18px",flexShrink:0}}>
+              <div style={{fontSize:14,fontWeight:800,color:"white"}}>✏️ Profili Düzenle</div>
+              <button onClick={()=>setEditProfile(false)} style={{background:"none",border:"none",color:"rgba(255,255,255,.75)",fontSize:22,cursor:"pointer"}}>✕</button>
+            </div>
+            <div style={{flex:1,overflowY:"auto",padding:"4px 20px 8px"}}>
+              {(()=>{ const safeTemp = weather.temp ?? 22; return (<>
+              <div style={{marginBottom:14}}>
+                <div style={SL}>Ad Soyad</div>
+                <input value={profile.name} onChange={e=>setProfile(p=>({...p,name:e.target.value}))} placeholder="İsminizi yazın"
+                  style={{width:"100%",padding:"13px 16px",borderRadius:13,border:"2px solid rgba(255,255,255,.28)",outline:"none",fontFamily:"inherit",fontSize:15,background:"rgba(255,255,255,.13)",color:"white",boxSizing:"border-box"}}
+                  onFocus={e=>e.target.style.borderColor="rgba(255,255,255,.7)"}
+                  onBlur={e=>e.target.style.borderColor="rgba(255,255,255,.28)"}/>
+              </div>
+              <NumInput label="🎂 Yaş" value={profile.age} onChange={v=>{setProfile(p=>({...p,age:v,goal:calcGoal({...p,age:v,tempC:safeTemp})}));setGoal(calcGoal({...profile,age:v,tempC:safeTemp}));}} min={10} max={100} step={1} unit=" yaş"/>
+              <NumInput label="⚖️ Ağırlık" value={profile.weight} onChange={v=>{setProfile(p=>({...p,weight:v,goal:calcGoal({...p,weight:v,tempC:safeTemp})}));setGoal(calcGoal({...profile,weight:v,tempC:safeTemp}));}} min={30} max={200} step={0.1} unit=" kg"/>
+              <NumInput label="📐 Boy" value={profile.height} onChange={v=>{setProfile(p=>({...p,height:v,goal:calcGoal({...p,height:v,tempC:safeTemp})}));setGoal(calcGoal({...profile,height:v,tempC:safeTemp}));}} min={120} max={220} step={1} unit=" cm"/>
+              <div style={{marginBottom:14}}>
+                <div style={SL}>🏃 Aktivite</div>
+                <div style={{display:"flex",flexDirection:"column",gap:7}}>
+                  {[["sedentary","🛋️","Hareketsiz"],["light","🚶","Hafif Aktif"],["moderate","🏋️","Orta Aktif"],["active","🚴","Çok Aktif"],["veryActive","⚡","Ekstra Aktif"]].map(([v,ic,nm])=>(
+                    <button key={v} onClick={()=>{const newP={...profile,activity:v};setProfile(p=>({...p,activity:v}));setGoal(calcGoal({...newP,tempC:safeTemp}));}} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 12px",borderRadius:12,border:`2px solid ${profile.activity===v?"white":"rgba(255,255,255,.18)"}`,background:profile.activity===v?"rgba(255,255,255,.2)":"rgba(255,255,255,.07)",cursor:"pointer",textAlign:"left",transition:"all .2s"}}>
+                      <span style={{fontSize:18}}>{ic}</span>
+                      <span style={{fontWeight:700,color:"white",fontSize:13,flex:1}}>{nm}</span>
+                      {profile.activity===v&&<span style={{color:"white",fontSize:16}}>✓</span>}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              </>); })()}
+            </div>
+            <div style={{padding:"8px 20px 24px",flexShrink:0}}>
+              <button onClick={()=>setEditProfile(false)} style={{...SP,width:"100%"}}>✅ Kaydet</button>
+            </div>
+          </div>
+        )}
+
+        {/* Badge popup */}
+        {popBadge&&<BadgePop badge={popBadge} onDone={()=>setPopBadge(null)}/>}
+        {goalCelebration&&<GoalCelebration total={total} goal={goal} streak={streak} onDone={()=>setGoalCelebration(false)}/>}
+      </div>
+    </div>
+  );
+}
