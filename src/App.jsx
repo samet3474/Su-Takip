@@ -3,7 +3,32 @@ import { useState, useRef, useCallback, useEffect } from "react";
 /* ─── CSS ─────────────────────────────────────────────────── */
 const G = `
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;margin:0;padding:0;}
-  html,body{overflow:hidden;height:100%;}
+  html,body{overflow:hidden;height:100%;width:100%;}
+  #root,#app{height:100%;width:100%;}
+  .app-outer{
+    width:100%;
+    height:100vh;
+    height:100dvh; /* iOS Safari'nin adres çubuğuna göre değişen gerçek görünür yükseklik */
+    display:flex;justify-content:center;align-items:center;
+    background:#7B97B4;overflow:hidden;
+    padding-top:env(safe-area-inset-top,0px);
+    padding-bottom:env(safe-area-inset-bottom,0px);
+  }
+  .app-shell{
+    width:100%;
+    max-width:100%;
+    height:100%;
+    display:flex;flex-direction:column;
+    background:#EEF4FB;position:relative;overflow:hidden;
+  }
+  /* Sadece geniş ekranlarda (masaüstü tarayıcı vb.) telefon çerçevesi görünümü uygula.
+     Gerçek telefonlarda (dar viewport) tam ekran kaplar, taşma olmaz. */
+  @media (min-width:521px){
+    .app-outer{padding:24px;}
+    .app-shell{width:390px;max-width:440px;height:min(844px,100%);border-radius:30px;box-shadow:0 24px 80px rgba(0,0,0,.4);}
+  }
+  .safe-bottom{padding-bottom:env(safe-area-inset-bottom,0px);}
+  .safe-top{padding-top:env(safe-area-inset-top,0px);}
   @keyframes sIR{from{transform:translateX(44px);opacity:0}to{transform:translateX(0);opacity:1}}
   @keyframes sIL{from{transform:translateX(-44px);opacity:0}to{transform:translateX(0);opacity:1}}
   @keyframes sIU{from{transform:translateY(22px);opacity:0}to{transform:translateY(0);opacity:1}}
@@ -390,7 +415,7 @@ function Sheet({open,onClose,children,h="64%"}){
         <svg viewBox="0 0 400 22" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none" style={{width:"100%",height:22,display:"block",flexShrink:0}}>
           <path d="M0,22 L0,11 Q50,0 100,8 Q150,16 200,6 Q250,-4 300,6 Q350,16 400,8 L400,22 Z" fill="white"/>
         </svg>
-        <div style={{background:"white",flex:1,overflowY:"auto",display:"flex",flexDirection:"column"}}>
+        <div className="safe-bottom" style={{background:"white",flex:1,overflowY:"auto",display:"flex",flexDirection:"column"}}>
           {children}
         </div>
       </div>
@@ -688,7 +713,7 @@ function AmountScreen({drink,onAdd,onBack,onClose}){
           <button key={a} onPointerDown={e=>{e.preventDefault();setAmount(a);}} style={{padding:"4px 7px",borderRadius:8,fontSize:9.5,fontWeight:700,cursor:"pointer",background:amount===a?"white":"rgba(255,255,255,.15)",color:amount===a?"#0D47A1":"rgba(255,255,255,.8)",border:"none",transition:"all .18s cubic-bezier(.34,1.56,.64,1)",transform:amount===a?"scale(1.12)":"scale(1)"}}>{a}</button>
         ))}
       </div>
-      <div style={{paddingBottom:20,display:"flex",justifyContent:"center",flexShrink:0}}>
+      <div className="safe-bottom" style={{paddingBottom:20,display:"flex",justifyContent:"center",flexShrink:0}}>
         <button onClick={()=>onAdd(drink,amount)} onPointerDown={e=>{e.currentTarget.style.transform="scale(.85)";}} onPointerUp={e=>{e.currentTarget.style.transform="scale(1)";}} onPointerLeave={e=>{e.currentTarget.style.transform="scale(1)";}} style={{width:56,height:56,borderRadius:"50%",background:"white",border:"none",cursor:"pointer",fontSize:22,display:"flex",alignItems:"center",justifyContent:"center",boxShadow:"0 6px 22px rgba(0,0,0,.32)",color:"#0D47A1",fontWeight:900,animation:"pls 1.5s ease-in-out infinite",transition:"transform .15s cubic-bezier(.34,1.56,.64,1)"}}>✓</button>
       </div>
     </div>
@@ -1011,7 +1036,7 @@ function Setup({onDone}){
         {pages[step]}
       </div>
       {step>0&&(
-        <div style={{padding:"8px 20px 24px",display:"flex",flexDirection:"column",gap:8,flexShrink:0}}>
+        <div className="safe-bottom" style={{padding:"8px 20px 24px",display:"flex",flexDirection:"column",gap:8,flexShrink:0}}>
           <div style={{display:"flex",gap:9}}>
             {step>1&&<button onClick={()=>go(step-1)} style={SS}>← Geri</button>}
             {step<pages.length-1
@@ -1319,14 +1344,14 @@ export default function App(){
 
   /* İlk yükleme bitene kadar (storage okunurken) boş ekran yanıp sönmesin */
   if(!loaded) return(
-    <div style={{width:"100%",height:"100vh",display:"flex",justifyContent:"center",alignItems:"center",background:"#0D47A1"}}>
+    <div className="app-outer" style={{background:"#0D47A1"}}>
       <style>{G}</style>
       <div style={{fontSize:40,animation:"pls 1.4s ease-in-out infinite"}}>💧</div>
     </div>
   );
 
   if(!profile)return(
-    <div style={{width:"100%",height:"100vh",display:"flex",justifyContent:"center",background:"#0D47A1",overflow:"hidden"}}>
+    <div className="app-outer" style={{background:"#0D47A1"}}>
       <style>{G}</style>
       <div style={{width:"100%",maxWidth:440,height:"100%"}}>
         <Setup onDone={p=>{setProfile(p);setGoal(p.goal);}}/>
@@ -1394,9 +1419,9 @@ export default function App(){
   const monthMax = Math.max(...monthData.map(d=>d.val||0), goal);
 
   return(
-    <div style={{width:"100%",height:"100vh",display:"flex",justifyContent:"center",alignItems:"center",background:"#7B97B4",overflow:"hidden"}}>
+    <div className="app-outer">
       <style>{G}</style>
-      <div style={{width:390,height:Math.min(844,window.innerHeight),display:"flex",flexDirection:"column",background:"#EEF4FB",position:"relative",overflow:"hidden",borderRadius:window.innerHeight>860?30:0,boxShadow:"0 24px 80px rgba(0,0,0,.4)"}}>
+      <div className="app-shell">
 
         {/* ── BUGÜN ── */}
         {screen==="home"&&(
@@ -2188,7 +2213,7 @@ export default function App(){
         )}
 
         {/* Bottom nav */}
-        <div style={{display:"flex",background:"white",borderTop:"1px solid #E8F0FE",flexShrink:0,boxShadow:"0 -3px 12px rgba(13,71,161,.06)"}}>
+        <div className="safe-bottom" style={{display:"flex",background:"white",borderTop:"1px solid #E8F0FE",flexShrink:0,boxShadow:"0 -3px 12px rgba(13,71,161,.06)"}}>
           {TABS.map(t=>(
             <button key={t.id} onClick={()=>setScreen(t.id)} style={{flex:1,background:"none",border:"none",cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",gap:1.5,padding:"5px 0 4px",transition:"all .2s"}}>
               <span style={{fontSize:18,transform:screen===t.id?"scale(1.15)":"scale(1)",transition:"transform .25s cubic-bezier(.34,1.4,.64,1)",display:"inline-block"}}>{t.icon}</span>
@@ -2242,7 +2267,7 @@ export default function App(){
               </div>
               </>); })()}
             </div>
-            <div style={{padding:"8px 20px 24px",flexShrink:0}}>
+            <div className="safe-bottom" style={{padding:"8px 20px 24px",flexShrink:0}}>
               <button onClick={()=>setEditProfile(false)} style={{...SP,width:"100%"}}>✅ Kaydet</button>
             </div>
           </div>
