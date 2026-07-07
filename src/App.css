@@ -261,16 +261,18 @@ async function pushRoomData(roomCode, myEntry){
   try{
     const safeName = (myEntry.name||"kullanici").replace(/[^a-zA-Z0-9ğüşöçİĞÜŞÖÇı]/g,"_").slice(0,40);
     await setDoc(doc(db,"rooms",roomCode,"members",safeName), myEntry);
-  }catch{}
+    console.log("[oda] veri yazıldı:", roomCode, safeName);
+  }catch(err){ console.error("[oda] yazma hatası:", err); }
 }
 async function fetchRoomData(roomCode){
   if(!roomCode) return [];
   try{
     const snap = await getDocs(collection(db,"rooms",roomCode,"members"));
     const members = snap.docs.map(d=>d.data());
+    console.log("[oda] üye sayısı:", members.length);
     // 24 saatten eski kayıtları gösterme (günlük yarışma)
     return members.filter(m=>Date.now()-m.updated<86400000);
-  }catch{ return []; }
+  }catch(err){ console.error("[oda] okuma hatası:", err); return []; }
 }
 
 /* ─── DSvg ────────────────────────────────────────────────── */
@@ -1343,7 +1345,11 @@ export default function App(){
 
   /* ── Oda güncelleme — kendi verilerimi paylaş, üyeleri çek ── */
   useEffect(()=>{
-    if(!loaded || !profile || !roomCode) return;
+    if(!loaded || !profile || !roomCode){
+      console.log("[oda] atlandı — loaded:",loaded,"profile:",!!profile,"roomCode:",roomCode);
+      return;
+    }
+    console.log("[oda] senkron başlıyor, roomCode:",roomCode);
     const push=async()=>{
       const myTotal=intake.reduce((s,e)=>s+Math.round(e.amount*e.drink.w),0);
       // streak'i burada bağımsız hesapla (render scope'una bağımlı değil)
